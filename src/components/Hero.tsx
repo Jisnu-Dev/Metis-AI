@@ -3,6 +3,7 @@
 import { ArrowRight, Cpu, Recycle, BarChart3, Award, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 export default function Hero() {
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
@@ -129,13 +130,15 @@ export default function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
-            <button 
-              className="group bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl shadow-purple-500/25"
-              style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
-            >
-              Start Demo
-              <ArrowRight className="inline-block ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
+            <Link href="/demo">
+              <button 
+                className="group cursor-pointer bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl shadow-purple-500/25"
+                style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
+              >
+                Start Demo
+                <ArrowRight className="inline-block ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </Link>
           </motion.div>
         </div>
       </div>

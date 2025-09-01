@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { Upload, Cpu, BarChart3, FileText } from 'lucide-react';
 
 const steps = [
@@ -131,12 +132,16 @@ export default function HowItWorks() {
               Transform your sustainability approach with AI-powered LCA analysis
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-purple-500/25">
-                Start Free Trial
-              </button>
-              <button className="border border-white/20 text-white hover:bg-white/10 font-semibold py-3 px-8 rounded-lg transition-all duration-300 backdrop-blur-sm">
-                Schedule Demo
-              </button>
+              <Link href="/demo">
+                <button className="cursor-pointer bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg shadow-purple-500/25">
+                  Start Free Trial
+                </button>
+              </Link>
+              <Link href="/demo">
+                <button className="cursor-pointer border border-white/20 text-white hover:bg-white/10 font-semibold py-3 px-8 rounded-lg transition-all duration-300 backdrop-blur-sm">
+                  Schedule Demo
+                </button>
+              </Link>
             </div>
           </div>
         </motion.div>

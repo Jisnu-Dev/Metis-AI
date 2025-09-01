@@ -103,7 +103,7 @@ export default function Testimonials() {
           className="text-center mt-16"
         >
           <p className="text-gray-400 mb-6">Join hundreds of companies transforming their sustainability journey</p>
-          <button className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25">
+          <button className="cursor-pointer px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25">
             Start Your Free Trial
           </button>
         </motion.div>

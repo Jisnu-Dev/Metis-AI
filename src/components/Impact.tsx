@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { 
   Zap, 
   TrendingUp, 
@@ -143,10 +144,12 @@ export default function Impact() {
               <h3 className="text-xl font-bold text-white mb-2">Ready to see your impact?</h3>
               <p className="text-gray-400">Join the sustainability revolution today</p>
             </div>
-            <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25">
-              <span>Get Started</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <Link href="/demo">
+              <button className="cursor-pointer flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25">
+                <span>Get Started</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </Link>
           </div>
         </motion.div>
       </div>

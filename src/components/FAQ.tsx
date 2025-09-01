@@ -72,7 +72,7 @@ export default function FAQ() {
             >
               <button
                 onClick={() => toggleFAQ(index)}
-                className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-800/20 transition-all duration-300"
+                className="cursor-pointer w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-800/20 transition-all duration-300"
                 style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
               >
                 <span className="font-semibold text-white text-lg">{faq.question}</span>
@@ -112,13 +112,13 @@ export default function FAQ() {
           <p className="text-gray-400 mb-6">Still have questions? Our team is here to help.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
+              className="cursor-pointer px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
               style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
             >
               Contact Sales
             </button>
             <button 
-              className="px-8 py-3 border border-gray-600 text-gray-300 font-semibold rounded-lg hover:border-purple-500 hover:text-white transition-all duration-300"
+              className="cursor-pointer px-8 py-3 border border-gray-600 text-gray-300 font-semibold rounded-lg hover:border-purple-500 hover:text-white transition-all duration-300"
               style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
             >
               View Documentation
