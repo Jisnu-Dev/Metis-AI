@@ -1,9 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Upload, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Factory, Truck, Recycle } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface Project {
   id: string;
@@ -38,13 +38,11 @@ interface GraphNode {
 
 // Life Cycle Modeler Component
 function LifeCycleModeler({ 
-  projects, 
   inputs, 
   setInputs, 
   currentStep, 
   setCurrentStep 
 }: { 
-  projects: Project[];
   inputs: LCAInput[];
   setInputs: React.Dispatch<React.SetStateAction<LCAInput[]>>;
   currentStep: number;
@@ -373,12 +371,13 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   const [touchDistance, setTouchDistance] = useState(0);
   const [userPreferredZoom, setUserPreferredZoom] = useState(1.2);
   const [momentum, setMomentum] = useState({ x: 0, y: 0 });
-  const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
+  // Auto-focus state for new nodes (using setter only)
+  const [, setAutoFocusEnabled] = useState(true);
   const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
   // Generate nodes dynamically based on input progress
-  const generateNodes = (): GraphNode[] => {
+  const generateNodes = useCallback((): GraphNode[] => {
     const nodes: GraphNode[] = [];
     const completedInputs = inputs.filter(input => input.completed);
     
@@ -411,7 +410,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
     }
 
     return nodes;
-  };
+  }, [inputs, currentStep]);
 
   const [nodes, setNodes] = useState<GraphNode[]>([]);
 
@@ -431,7 +430,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   };
 
   // Smooth camera focus function
-  const focusOnNode = (nodeX: number, nodeY: number, targetScale?: number) => {
+  const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
@@ -450,7 +449,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
       y: targetY,
       scale: finalScale
     });
-  };
+  }, [userPreferredZoom]);
 
   // Update nodes when inputs or currentStep changes
   useEffect(() => {
@@ -459,7 +458,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
     // Preserve existing node positions when updating
     setNodes(prevNodes => {
       const previousNodeCount = prevNodes.length;
-      const updatedNodes = newNodes.map(newNode => {
+      const updatedNodes = newNodes.map((newNode: GraphNode) => {
         const existingNode = prevNodes.find(n => n.id === newNode.id);
         if (existingNode) {
           // Keep the existing position if the node already exists
@@ -483,7 +482,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
       
       return updatedNodes;
     });
-  }, [inputs, currentStep, userPreferredZoom]);
+  }, [inputs, currentStep, userPreferredZoom, generateNodes, focusOnNode, targetTransform.scale]);
 
   // Keyboard event handler for zoom shortcuts
   useEffect(() => {
@@ -504,7 +503,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Smooth transform animation with optimization
   useEffect(() => {
@@ -578,12 +577,6 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   }, []);
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-
-  // Transform coordinates based on current pan/zoom
-  const transformPoint = (x: number, y: number) => ({
-    x: (x + transform.x) * transform.scale,
-    y: (y + transform.y) * transform.scale
-  });
 
   // Get touch distance for pinch gestures
   const getTouchDistance = (touches: React.TouchList) => {
@@ -1945,7 +1938,6 @@ export default function DemoPage() {
               {/* Left Panel - Input Forms */}
               <div className="w-1/3 bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-4 overflow-hidden">
                 <LifeCycleModeler 
-                  projects={projects} 
                   inputs={inputs}
                   setInputs={setInputs}
                   currentStep={currentStep}
