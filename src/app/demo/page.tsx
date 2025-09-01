@@ -37,97 +37,19 @@ interface GraphNode {
 }
 
 // Life Cycle Modeler Component
-function LifeCycleModeler({ projects }: { projects: Project[] }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [inputs, setInputs] = useState<LCAInput[]>([
-    {
-      id: 'product',
-      label: 'Product Selection',
-      type: 'dropdown',
-      options: projects.map(p => `${p.name} (${p.functionalUnit})`),
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'location',
-      label: 'Factory Location',
-      type: 'dropdown',
-      options: ['India - Mumbai', 'India - Delhi', 'India - Chennai', 'India - Kolkata', 'India - Bangalore', 'China - Shanghai', 'USA - California', 'Germany - Berlin'],
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'energy',
-      label: 'Energy Source',
-      type: 'dropdown',
-      options: ['Coal', 'Natural Gas', 'Solar', 'Wind', 'Hydroelectric', 'Nuclear', 'Mixed Grid'],
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'electricity',
-      label: 'Electricity Consumption (kWh/unit)',
-      type: 'number',
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'scrapRate',
-      label: 'Process Scrap Rate (%)',
-      type: 'number',
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'scrapFate',
-      label: 'Scrap Fate',
-      type: 'dropdown',
-      options: ['Recycled Internally', 'Sold to Recycler', 'Sent to Landfill', 'Incinerated'],
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'water',
-      label: 'Water Usage (L/unit)',
-      type: 'number',
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'materialSource',
-      label: 'Material Source Location',
-      type: 'dropdown',
-      options: ['Local (Same City)', 'Regional (Same State)', 'National (Same Country)', 'International - Asia', 'International - Europe', 'International - Americas'],
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'transportation',
-      label: 'Mode of Transportation',
-      type: 'dropdown',
-      options: ['Truck', 'Rail', 'Seaway', 'Air', 'Pipeline', 'Mixed Mode'],
-      value: '',
-      completed: false,
-      skipped: false
-    },
-    {
-      id: 'endOfLife',
-      label: 'End of Life',
-      type: 'dropdown',
-      options: ['Recycled', 'Landfill', 'Incinerated', 'Reused', 'Composted'],
-      value: '',
-      completed: false,
-      skipped: false
-    }
-  ]);
+function LifeCycleModeler({ 
+  projects, 
+  inputs, 
+  setInputs, 
+  currentStep, 
+  setCurrentStep 
+}: { 
+  projects: Project[];
+  inputs: LCAInput[];
+  setInputs: React.Dispatch<React.SetStateAction<LCAInput[]>>;
+  currentStep: number;
+  setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
+}) {
 
   // Helper functions for enhanced UI
   const getStepIcon = (stepId: string) => {
@@ -442,24 +364,218 @@ function LifeCycleModeler({ projects }: { projects: Project[] }) {
 }
 
 // Enhanced Obsidian-style Graph Component with Pan & Zoom
-function ObsidianGraph() {
+function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentStep: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1.2 });
+  const [targetTransform, setTargetTransform] = useState({ x: 0, y: 0, scale: 1.2 });
   const [isDragging, setIsDragging] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [touchDistance, setTouchDistance] = useState(0);
+  const [userPreferredZoom, setUserPreferredZoom] = useState(1.2);
+  const [momentum, setMomentum] = useState({ x: 0, y: 0 });
+  const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
+  const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
-  // Node positions with better spacing
-  const [nodes, setNodes] = useState<GraphNode[]>([
-    { id: 'start', x: 100, y: 300, label: 'Start', type: 'input', status: 'filled', connections: ['product'] },
-    { id: 'product', x: 280, y: 200, label: 'Product Definition', type: 'process', status: 'empty', connections: ['location'] },
-    { id: 'location', x: 460, y: 150, label: 'Factory Location', type: 'process', status: 'empty', connections: ['energy'] },
-    { id: 'energy', x: 640, y: 120, label: 'Energy Sources', type: 'process', status: 'empty', connections: ['process'] },
-    { id: 'process', x: 820, y: 200, label: 'Production Process', type: 'process', status: 'empty', connections: ['transport'] },
-    { id: 'transport', x: 640, y: 380, label: 'Transportation', type: 'process', status: 'empty', connections: ['endoflife'] },
-    { id: 'endoflife', x: 460, y: 480, label: 'End of Life', type: 'output', status: 'empty', connections: ['impact'] },
-    { id: 'impact', x: 280, y: 420, label: 'Impact Assessment', type: 'output', status: 'empty', connections: [] }
-  ]);
+  // Generate nodes dynamically based on input progress
+  const generateNodes = (): GraphNode[] => {
+    const nodes: GraphNode[] = [];
+    const completedInputs = inputs.filter(input => input.completed);
+    
+    // More dynamic and impressive positioning
+    const centerX = 500;
+    const centerY = 300;
+    const radius = 180;
+    
+    // Always show current step node (even if not completed)
+    const nodesToShow = Math.max(completedInputs.length, currentStep >= 0 ? currentStep + 1 : 0);
+    
+    for (let i = 0; i < Math.min(nodesToShow, inputs.length); i++) {
+      const input = inputs[i];
+      
+      // Create an organic spiral layout for visual appeal
+      const angle = (i / inputs.length) * Math.PI * 2 - Math.PI / 2; // Start from top
+      const spiralRadius = radius + Math.sin(i * 0.8) * 40; // Organic variation
+      const x = centerX + Math.cos(angle) * spiralRadius + Math.sin(i * 1.2) * 20;
+      const y = centerY + Math.sin(angle) * spiralRadius + Math.cos(i * 0.7) * 15;
+      
+      nodes.push({
+        id: input.id,
+        x: x,
+        y: y,
+        label: input.label,
+        type: i === 0 ? 'input' : i === inputs.length - 1 ? 'output' : 'process',
+        status: input.completed ? 'filled' : input.skipped ? 'skipped' : 'empty',
+        connections: i < Math.min(nodesToShow - 1, inputs.length - 1) ? [inputs[i + 1].id] : []
+      });
+    }
+
+    return nodes;
+  };
+
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+
+  // Enhanced zoom functions with bounds checking
+  const zoomIn = () => {
+    setAutoFocusEnabled(false); // Disable auto-focus when user manually zooms
+    const newScale = Math.min(3, targetTransform.scale * 1.2);
+    setTargetTransform(prev => ({ ...prev, scale: newScale }));
+    setUserPreferredZoom(newScale);
+  };
+
+  const zoomOut = () => {
+    setAutoFocusEnabled(false); // Disable auto-focus when user manually zooms
+    const newScale = Math.max(0.3, targetTransform.scale * 0.8);
+    setTargetTransform(prev => ({ ...prev, scale: newScale }));
+    setUserPreferredZoom(newScale);
+  };
+
+  // Smooth camera focus function
+  const focusOnNode = (nodeX: number, nodeY: number, targetScale?: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // Use user's preferred zoom if no specific scale is provided
+    const finalScale = targetScale || userPreferredZoom;
+    
+    // Calculate the transform needed to center the node
+    const targetX = centerX - nodeX * finalScale;
+    const targetY = centerY - nodeY * finalScale;
+    
+    setTargetTransform({
+      x: targetX,
+      y: targetY,
+      scale: finalScale
+    });
+  };
+
+  // Update nodes when inputs or currentStep changes
+  useEffect(() => {
+    const newNodes = generateNodes();
+    
+    // Preserve existing node positions when updating
+    setNodes(prevNodes => {
+      const previousNodeCount = prevNodes.length;
+      const updatedNodes = newNodes.map(newNode => {
+        const existingNode = prevNodes.find(n => n.id === newNode.id);
+        if (existingNode) {
+          // Keep the existing position if the node already exists
+          return { ...newNode, x: existingNode.x, y: existingNode.y };
+        }
+        return newNode;
+      });
+      
+      // Auto-enable focus and focus on new node when a new node is added
+      if (updatedNodes.length > previousNodeCount && updatedNodes.length > 0 && currentStep >= 0 && currentStep < updatedNodes.length) {
+        setAutoFocusEnabled(true); // Enable auto-focus for new nodes
+        const currentNode = updatedNodes[currentStep];
+        if (currentNode) {
+          setTimeout(() => {
+            // Always focus on new node, maintaining current zoom level or using preferred zoom
+            const focusZoom = Math.max(userPreferredZoom, targetTransform.scale);
+            focusOnNode(currentNode.x, currentNode.y, focusZoom);
+          }, 100); // Small delay to ensure node is rendered
+        }
+      }
+      
+      return updatedNodes;
+    });
+  }, [inputs, currentStep, userPreferredZoom]);
+
+  // Keyboard event handler for zoom shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          zoomIn();
+        } else if (e.key === '-') {
+          e.preventDefault();
+          zoomOut();
+        } else if (e.key === '0') {
+          e.preventDefault();
+          resetView();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Smooth transform animation with optimization
+  useEffect(() => {
+    let animationId: number;
+    let lastTime = 0;
+    
+    const animateTransform = (currentTime: number) => {
+      // Throttle to 60fps max
+      if (currentTime - lastTime < 16.67) {
+        animationId = requestAnimationFrame(animateTransform);
+        return;
+      }
+      lastTime = currentTime;
+      
+      setTransform(current => {
+        const deltaX = targetTransform.x - current.x;
+        const deltaY = targetTransform.y - current.y;
+        const deltaScale = targetTransform.scale - current.scale;
+        
+        // Smooth easing factor - faster for better responsiveness
+        const easing = 0.15;
+        
+        // Check if we're close enough to stop animating
+        if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1 && Math.abs(deltaScale) < 0.005) {
+          return targetTransform;
+        }
+        
+        return {
+          x: current.x + deltaX * easing,
+          y: current.y + deltaY * easing,
+          scale: current.scale + deltaScale * easing
+        };
+      });
+      
+      animationId = requestAnimationFrame(animateTransform);
+    };
+    
+    animationId = requestAnimationFrame(animateTransform);
+    
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [targetTransform]);
+
+  // Continuous animation loop for impressive effects
+  useEffect(() => {
+    let animationId: number;
+    
+    const animate = () => {
+      // Force redraw for animations
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Trigger redraw by updating a dummy state if needed
+          // The draw function will handle the animation timing
+        }
+      }
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    animationId = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, []);
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
@@ -480,57 +596,159 @@ function ObsidianGraph() {
     );
   };
 
-  // Handle mouse events for panning
+  // Handle mouse events for panning and node dragging
   const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    const worldX = (screenX - transform.x) / transform.scale;
+    const worldY = (screenY - transform.y) / transform.scale;
+
+    // Check if clicking on a node
+    const hitRadius = Math.max(20, 30 / transform.scale);
+    const clickedNode = nodes.find(node => {
+      const distance = Math.sqrt((worldX - node.x) ** 2 + (worldY - node.y) ** 2);
+      return distance <= hitRadius;
+    });
+
+    if (clickedNode) {
+      // Start dragging the node
+      setDraggedNode(clickedNode);
+      setDragOffset({
+        x: worldX - clickedNode.x,
+        y: worldY - clickedNode.y
+      });
+      setAutoFocusEnabled(false); // Disable auto-focus when dragging nodes
+    } else {
+      // Start panning
+      setIsDragging(true);
+      setAutoFocusEnabled(false); // Disable auto-focus when user manually pans
+    }
+    
     setLastMousePos({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    
-    const deltaX = e.clientX - lastMousePos.x;
-    const deltaY = e.clientY - lastMousePos.y;
-    
-    setTransform(prev => ({
-      ...prev,
-      x: prev.x + deltaX / prev.scale,
-      y: prev.y + deltaY / prev.scale
-    }));
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+
+    if (draggedNode) {
+      // Dragging a node
+      const worldX = (screenX - transform.x) / transform.scale;
+      const worldY = (screenY - transform.y) / transform.scale;
+      
+      // Update the dragged node's position
+      setNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === draggedNode.id 
+            ? { ...node, x: worldX - dragOffset!.x, y: worldY - dragOffset!.y }
+            : node
+        )
+      );
+    } else if (isDragging) {
+      // Panning the canvas
+      const deltaX = e.clientX - lastMousePos.x;
+      const deltaY = e.clientY - lastMousePos.y;
+      
+      // Store momentum for smooth release
+      setMomentum({ x: deltaX * 0.3, y: deltaY * 0.3 });
+      
+      setTargetTransform(prev => ({
+        ...prev,
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+    }
     
     setLastMousePos({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseUp = () => {
+    if (isDragging && (Math.abs(momentum.x) > 1 || Math.abs(momentum.y) > 1)) {
+      // Apply momentum when releasing pan
+      setTargetTransform(prev => ({
+        ...prev,
+        x: prev.x + momentum.x * 3,
+        y: prev.y + momentum.y * 3
+      }));
+    }
+    
     setIsDragging(false);
+    setDraggedNode(null);
+    setMomentum({ x: 0, y: 0 });
   };
 
-  // Handle wheel zoom
+  // Handle wheel zoom with damping
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
+    setAutoFocusEnabled(false); // Disable auto-focus when user manually zooms
+    
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.3, Math.min(3, transform.scale * scaleFactor));
+    // Normalized zoom with damping for different devices
+    const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) / 100;
+    const scaleFactor = delta > 0 ? 0.85 : 1.15;
+    const newScale = Math.max(0.3, Math.min(3, targetTransform.scale * scaleFactor));
     
-    // Zoom towards mouse position
-    const scaleChange = newScale / transform.scale;
-    setTransform(prev => ({
-      x: prev.x + (mouseX / prev.scale - mouseX / newScale),
-      y: prev.y + (mouseY / prev.scale - mouseY / newScale),
+    // Zoom towards mouse position with precise calculation
+    const worldMouseX = (mouseX - targetTransform.x) / targetTransform.scale;
+    const worldMouseY = (mouseY - targetTransform.y) / targetTransform.scale;
+    
+    const newX = mouseX - worldMouseX * newScale;
+    const newY = mouseY - worldMouseY * newScale;
+    
+    setTargetTransform({
+      x: newX,
+      y: newY,
       scale: newScale
-    }));
+    });
+    
+    // Save user's preferred zoom level
+    setUserPreferredZoom(newScale);
   };
 
   // Handle touch events for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
+    setAutoFocusEnabled(false); // Disable auto-focus when user touches
     if (e.touches.length === 1) {
-      setIsDragging(true);
-      setLastMousePos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      const touch = e.touches[0];
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const screenX = touch.clientX - rect.left;
+      const screenY = touch.clientY - rect.top;
+      const worldX = (screenX - transform.x) / transform.scale;
+      const worldY = (screenY - transform.y) / transform.scale;
+
+      // Check if touch is on a node
+      const hitRadius = Math.max(20, 40 / transform.scale); // Larger hit area for touch
+      const touchedNode = nodes.find(node => {
+        const distance = Math.sqrt((worldX - node.x) ** 2 + (worldY - node.y) ** 2);
+        return distance <= hitRadius;
+      });
+
+      if (touchedNode) {
+        // Start dragging node
+        setDraggedNode(touchedNode);
+        setDragOffset({ x: worldX - touchedNode.x, y: worldY - touchedNode.y });
+        setAutoFocusEnabled(false); // Disable auto-focus when dragging nodes
+      } else {
+        // Start panning canvas
+        setIsDragging(true);
+        setLastMousePos({ x: touch.clientX, y: touch.clientY });
+      }
     } else if (e.touches.length === 2) {
       setTouchDistance(getTouchDistance(e.touches));
     }
@@ -539,29 +757,71 @@ function ObsidianGraph() {
   const handleTouchMove = (e: React.TouchEvent) => {
     e.preventDefault();
     
-    if (e.touches.length === 1 && isDragging) {
-      // Single finger pan
-      const deltaX = e.touches[0].clientX - lastMousePos.x;
-      const deltaY = e.touches[0].clientY - lastMousePos.y;
-      
-      setTransform(prev => ({
-        ...prev,
-        x: prev.x + deltaX / prev.scale,
-        y: prev.y + deltaY / prev.scale
-      }));
-      
-      setLastMousePos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const screenX = touch.clientX - rect.left;
+      const screenY = touch.clientY - rect.top;
+
+      if (draggedNode && dragOffset) {
+        // Update node position
+        const worldX = (screenX - transform.x) / transform.scale;
+        const worldY = (screenY - transform.y) / transform.scale;
+        
+        setNodes(prev => prev.map(node =>
+          node.id === draggedNode.id
+            ? { ...node, x: worldX - dragOffset!.x, y: worldY - dragOffset!.y }
+            : node
+        ));
+      } else if (isDragging) {
+        // Single finger pan
+        const deltaX = touch.clientX - lastMousePos.x;
+        const deltaY = touch.clientY - lastMousePos.y;
+        
+        setTargetTransform(prev => ({
+          ...prev,
+          x: prev.x + deltaX,
+          y: prev.y + deltaY
+        }));
+        
+        setLastMousePos({ x: touch.clientX, y: touch.clientY });
+      }
     } else if (e.touches.length === 2) {
-      // Two finger pinch zoom
+      // Two finger pinch zoom - zoom towards center of touches
       const newDistance = getTouchDistance(e.touches);
       if (touchDistance > 0) {
         const scaleFactor = newDistance / touchDistance;
-        const newScale = Math.max(0.3, Math.min(3, transform.scale * scaleFactor));
+        const newScale = Math.max(0.3, Math.min(3, targetTransform.scale * scaleFactor));
         
-        setTransform(prev => ({
-          ...prev,
-          scale: newScale
-        }));
+        // Calculate center point between two fingers
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+          const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+          
+          // Zoom towards the center of the pinch
+          const worldX = (centerX - targetTransform.x) / targetTransform.scale;
+          const worldY = (centerY - targetTransform.y) / targetTransform.scale;
+          const newX = centerX - worldX * newScale;
+          const newY = centerY - worldY * newScale;
+          
+          setTargetTransform({
+            x: newX,
+            y: newY,
+            scale: newScale
+          });
+        } else {
+          setTargetTransform(prev => ({
+            ...prev,
+            scale: newScale
+          }));
+        }
+        
+        // Save user's preferred zoom level
+        setUserPreferredZoom(newScale);
       }
       setTouchDistance(newDistance);
     }
@@ -569,12 +829,48 @@ function ObsidianGraph() {
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    setDraggedNode(null);
+    setDragOffset(null);
     setTouchDistance(0);
   };
 
-  // Reset view function
+  // Reset view function - shows full graph overview
   const resetView = () => {
-    setTransform({ x: 0, y: 0, scale: 1 });
+    // Calculate bounds of all nodes
+    if (nodes.length === 0) {
+      setTargetTransform({ x: 0, y: 0, scale: 1 });
+      setUserPreferredZoom(1);
+      return;
+    }
+
+    const padding = 100;
+    const minX = Math.min(...nodes.map(n => n.x)) - padding;
+    const maxX = Math.max(...nodes.map(n => n.x)) + padding;
+    const minY = Math.min(...nodes.map(n => n.y)) - padding;
+    const maxY = Math.max(...nodes.map(n => n.y)) + padding;
+
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+    const canvas = canvasRef.current;
+    
+    if (canvas) {
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      
+      // Calculate scale to fit all nodes with padding
+      const scaleX = canvasWidth / graphWidth;
+      const scaleY = canvasHeight / graphHeight;
+      const scale = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 1x
+      
+      // Center the graph
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const x = canvasWidth / 2 - centerX * scale;
+      const y = canvasHeight / 2 - centerY * scale;
+      
+      setTargetTransform({ x, y, scale });
+      setUserPreferredZoom(scale);
+    }
   };
 
   useEffect(() => {
@@ -590,9 +886,62 @@ function ObsidianGraph() {
     canvas.height = rect.height * window.devicePixelRatio;
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-    // Clear canvas with dark background
-    ctx.fillStyle = 'rgba(17, 24, 39, 0.95)';
+    // Clear canvas with impressive dark background
+    ctx.fillStyle = 'rgba(17, 24, 39, 0.98)';
     ctx.fillRect(0, 0, rect.width, rect.height);
+    
+    // Add subtle grid pattern
+    const time = Date.now() * 0.001;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.08)';
+    ctx.lineWidth = 1;
+    
+    const gridSize = 50;
+    for (let x = 0; x < rect.width; x += gridSize) {
+      ctx.globalAlpha = 0.05 + Math.sin(time + x * 0.01) * 0.03;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, rect.height);
+      ctx.stroke();
+    }
+    
+    for (let y = 0; y < rect.height; y += gridSize) {
+      ctx.globalAlpha = 0.05 + Math.cos(time + y * 0.01) * 0.03;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(rect.width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    
+    // Ambient center glow
+    const centerGlow = ctx.createRadialGradient(
+      rect.width / 2, rect.height / 2, 0,
+      rect.width / 2, rect.height / 2, 600
+    );
+    centerGlow.addColorStop(0, 'rgba(168, 85, 247, 0.03)');
+    centerGlow.addColorStop(0.5, 'rgba(168, 85, 247, 0.01)');
+    centerGlow.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    ctx.fillStyle = centerGlow;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    // Add floating ambient particles
+    for (let i = 0; i < 15; i++) {
+      const x = (Math.sin(time * 0.3 + i * 0.8) * 200 + rect.width / 2);
+      const y = (Math.cos(time * 0.4 + i * 1.2) * 150 + rect.height / 2);
+      const size = 1 + Math.sin(time * 2 + i) * 0.5;
+      const alpha = 0.1 + Math.sin(time * 1.5 + i * 0.5) * 0.05;
+      
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#A855F7';
+      ctx.shadowColor = '#A855F7';
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Save context for transformations
     ctx.save();
@@ -601,137 +950,239 @@ function ObsidianGraph() {
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    // Draw connections first
+    // Draw linear connections with dynamic effects
     nodes.forEach(node => {
       node.connections.forEach(connectionId => {
         const targetNode = nodes.find(n => n.id === connectionId);
         if (targetNode) {
+          const isActive = node.status === 'filled' || targetNode.status === 'filled';
+          
+          // Create impressive gradient for linear connections
+          const gradient = ctx.createLinearGradient(node.x, node.y, targetNode.x, targetNode.y);
+          
+          if (isActive) {
+            // Vibrant gradient for active connections
+            gradient.addColorStop(0, '#8B5CF6');
+            gradient.addColorStop(0.3, '#A855F7');
+            gradient.addColorStop(0.7, '#C084FC');
+            gradient.addColorStop(1, '#DDD6FE');
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#A855F7';
+            ctx.shadowBlur = 8;
+          } else {
+            // Subtle gradient for inactive connections
+            gradient.addColorStop(0, '#64748B');
+            gradient.addColorStop(0.5, '#475569');
+            gradient.addColorStop(1, '#334155');
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 0;
+          }
+          
+          // Draw the linear path
+          ctx.strokeStyle = gradient;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
           ctx.beginPath();
           ctx.moveTo(node.x, node.y);
-          
-          // Create curved connections
-          const midX = (node.x + targetNode.x) / 2;
-          const midY = (node.y + targetNode.y) / 2 - 50;
-          ctx.quadraticCurveTo(midX, midY, targetNode.x, targetNode.y);
-          
-          ctx.strokeStyle = node.status === 'filled' && targetNode.status === 'filled' ? 
-            'rgba(168, 85, 247, 0.8)' : 'rgba(75, 85, 99, 0.4)';
-          ctx.lineWidth = node.status === 'filled' && targetNode.status === 'filled' ? 3 : 2;
+          ctx.lineTo(targetNode.x, targetNode.y);
           ctx.stroke();
-
-          // Add flow direction arrows
-          if (node.status === 'filled') {
-            const angle = Math.atan2(targetNode.y - node.y, targetNode.x - node.x);
-            const arrowX = targetNode.x - 30 * Math.cos(angle);
-            const arrowY = targetNode.y - 30 * Math.sin(angle);
-            
-            ctx.save();
-            ctx.translate(arrowX, arrowY);
-            ctx.rotate(angle);
-            ctx.beginPath();
-            ctx.moveTo(-10, -5);
-            ctx.lineTo(0, 0);
-            ctx.lineTo(-10, 5);
-            ctx.strokeStyle = 'rgba(168, 85, 247, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
+          
+          // Add flowing particles for active connections
+          if (isActive) {
+            const time = Date.now() * 0.001;
+            for (let i = 0; i < 2; i++) {
+              const progress = ((time * 0.8 + i * 0.5) % 1);
+              
+              // Calculate particle position along linear path
+              const t = progress;
+              const x = node.x + (targetNode.x - node.x) * t;
+              const y = node.y + (targetNode.y - node.y) * t;
+              
+              // Draw glowing particle
+              ctx.save();
+              ctx.globalAlpha = 0.8 * (1 - progress);
+              ctx.fillStyle = '#DDD6FE';
+              ctx.shadowColor = '#A855F7';
+              ctx.shadowBlur = 6;
+              ctx.beginPath();
+              ctx.arc(x, y, 3, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.restore();
+            }
           }
         }
       });
     });
 
-    // Draw nodes with enhanced styling
+    // Draw impressive nodes with dynamic effects
     nodes.forEach(node => {
+      const baseSize = selectedNode?.id === node.id ? 20 : 16;
+      const time = Date.now() * 0.001;
+      
+      // Dynamic pulsing for filled nodes
+      const pulseScale = node.status === 'filled' ? 1 + Math.sin(time * 3) * 0.1 : 1;
+      const nodeSize = baseSize * pulseScale;
+      
+      ctx.save();
+      
+      // Impressive glow effect for active nodes
+      if (node.status === 'filled') {
+        ctx.shadowColor = '#A855F7';
+        ctx.shadowBlur = 20;
+        
+        // Multiple glow layers for depth
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, nodeSize + i * 8, 0, 2 * Math.PI);
+          ctx.fillStyle = `rgba(168, 85, 247, ${0.1 - i * 0.03})`;
+          ctx.fill();
+        }
+      }
+      
+      // Main node with gradient
       const gradient = ctx.createRadialGradient(
-        node.x, node.y, 0,
-        node.x, node.y, 25
+        node.x - nodeSize * 0.3, 
+        node.y - nodeSize * 0.3, 
+        0,
+        node.x, 
+        node.y, 
+        nodeSize
       );
       
       if (node.status === 'filled') {
-        gradient.addColorStop(0, 'rgba(168, 85, 247, 0.9)');
-        gradient.addColorStop(1, 'rgba(236, 72, 153, 0.7)');
+        gradient.addColorStop(0, '#DDD6FE');
+        gradient.addColorStop(0.4, '#C084FC');
+        gradient.addColorStop(0.8, '#A855F7');
+        gradient.addColorStop(1, '#7C3AED');
       } else if (node.status === 'skipped') {
-        gradient.addColorStop(0, 'rgba(234, 179, 8, 0.9)');
-        gradient.addColorStop(1, 'rgba(245, 158, 11, 0.7)');
+        gradient.addColorStop(0, '#FDE047');
+        gradient.addColorStop(0.5, '#EAB308');
+        gradient.addColorStop(1, '#CA8A04');
       } else {
-        gradient.addColorStop(0, 'rgba(75, 85, 99, 0.8)');
-        gradient.addColorStop(1, 'rgba(55, 65, 81, 0.6)');
+        gradient.addColorStop(0, '#94A3B8');
+        gradient.addColorStop(0.5, '#64748B');
+        gradient.addColorStop(1, '#475569');
       }
-
-      // Node background circle
+      
+      // Draw main circle
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 25, 0, 2 * Math.PI);
+      ctx.arc(node.x, node.y, nodeSize, 0, 2 * Math.PI);
       ctx.fill();
-
-      // Node border
-      ctx.strokeStyle = node.status === 'filled' ? 
-        'rgba(168, 85, 247, 1)' : 
-        node.status === 'skipped' ?
-        'rgba(234, 179, 8, 1)' :
-        'rgba(75, 85, 99, 0.8)';
-      ctx.lineWidth = 3;
+      
+      // Elegant border
+      ctx.strokeStyle = node.status === 'filled' ? '#7C3AED' : 
+                       node.status === 'skipped' ? '#CA8A04' : '#334155';
+      ctx.lineWidth = 2;
       ctx.stroke();
-
-      // Node labels with background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      
+      // Inner highlight for depth
+      ctx.strokeStyle = node.status === 'filled' ? '#DDD6FE' : '#E2E8F0';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(node.x - 40, node.y + 35, 80, 20, 5);
-      ctx.fill();
-
-      ctx.fillStyle = node.status === 'filled' ? '#ffffff' : '#d1d5db';
-      ctx.font = 'bold 11px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(node.label, node.x, node.y + 45);
-
+      ctx.arc(node.x, node.y, nodeSize - 3, 0, 2 * Math.PI);
+      ctx.stroke();
+      
       // Status indicator
       if (node.status === 'filled') {
-        ctx.fillStyle = 'rgba(34, 197, 94, 1)';
+        // Glowing center dot
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = '#DDD6FE';
         ctx.beginPath();
-        ctx.arc(node.x + 18, node.y - 18, 6, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Pulsing effect
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.4)';
-        ctx.beginPath();
-        ctx.arc(node.x + 18, node.y - 18, 10, 0, 2 * Math.PI);
+        ctx.arc(node.x, node.y, 4, 0, 2 * Math.PI);
         ctx.fill();
       } else if (node.status === 'skipped') {
-        ctx.fillStyle = 'rgba(245, 158, 11, 1)';
+        // Warning icon
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', node.x, node.y);
+      }
+      
+      ctx.restore();
+      
+      // Enhanced label with background
+      const labelY = node.y + nodeSize + 16;
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+      const labelWidth = ctx.measureText(node.label).width;
+      
+      // Label background with rounded corners
+      const padding = 8;
+      const bgWidth = labelWidth + padding * 2;
+      const bgHeight = 20;
+      
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(node.x - bgWidth/2, labelY - bgHeight/2, bgWidth, bgHeight, 6);
+      ctx.fill();
+      
+      // Label border
+      ctx.strokeStyle = node.status === 'filled' ? 'rgba(168, 85, 247, 0.5)' : 'rgba(100, 116, 139, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Label text
+      ctx.fillStyle = node.status === 'filled' ? '#DDD6FE' : '#E2E8F0';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.label, node.x, labelY);
+
+      // Selection indicator with enhanced visibility (scales with zoom)
+      if (selectedNode?.id === node.id) {
+        const outlineScale = 1 / transform.scale; // Scale outline to maintain consistent thickness
+        
+        // Outer glow
+        ctx.shadowColor = '#A855F7';
+        ctx.shadowBlur = 15 * outlineScale;
+        ctx.strokeStyle = '#A855F7';
+        ctx.lineWidth = 4 * outlineScale;
+        ctx.setLineDash([10 * outlineScale, 5 * outlineScale]);
+        ctx.lineDashOffset = 0; // Static dotted pattern, no rotation
         ctx.beginPath();
-        ctx.arc(node.x + 18, node.y - 18, 6, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx.arc(node.x, node.y, nodeSize + 12 * outlineScale, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // Inner solid ring
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#DDD6FE';
+        ctx.lineWidth = 2 * outlineScale;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, nodeSize + 6 * outlineScale, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // Reset
+        ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
       }
     });
 
     // Restore context
     ctx.restore();
 
-    // Draw zoom level indicator
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = '12px Inter, sans-serif';
-    ctx.fillText(`${Math.round(transform.scale * 100)}%`, 10, rect.height - 10);
-
-  }, [transform, nodes]);
+  }, [transform, nodes, selectedNode]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isDragging) return; // Don't select if we were dragging
-    
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left - transform.x) / transform.scale;
-    const y = (event.clientY - rect.top - transform.y) / transform.scale;
+    // Convert screen coordinates to world coordinates
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldX = (screenX - transform.x) / transform.scale;
+    const worldY = (screenY - transform.y) / transform.scale;
 
-    // Check if click is on a node
+    // Check if click is on a node (use dynamic hit area based on zoom)
+    const hitRadius = Math.max(20, 30 / transform.scale); // Larger hit area when zoomed out
     const clickedNode = nodes.find(node => {
-      const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-      return distance <= 25;
+      const distance = Math.sqrt((worldX - node.x) ** 2 + (worldY - node.y) ** 2);
+      return distance <= hitRadius;
     });
 
+    // Always set the selected node, regardless of drag state
     setSelectedNode(clickedNode || null);
   };
 
@@ -739,15 +1190,16 @@ function ObsidianGraph() {
     <div className="h-full flex flex-col">
       <div className="mb-3">
         <h2 className="text-xl font-bold mb-1">Process Flow Visualization</h2>
-        <p className="text-gray-400 text-sm">Interactive LCA process mapping - Drag to pan, scroll to zoom</p>
+        <p className="text-gray-400 text-sm">Interactive LCA process mapping - Drag to pan, scroll to zoom, Ctrl+/- to zoom, Ctrl+0 to reset. Purple button focuses current step.</p>
       </div>
 
       {/* Graph Canvas Container */}
       <div className="flex-1 relative bg-gradient-to-br from-gray-900/30 to-gray-800/20 border border-gray-700/30 rounded-xl overflow-hidden">
+        
         {/* Control Panel */}
         <div className="absolute top-3 right-3 z-10 flex flex-col space-y-2">
           <button
-            onClick={() => setTransform(prev => ({ ...prev, scale: Math.min(3, prev.scale * 1.2) }))}
+            onClick={zoomIn}
             className="w-8 h-8 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/50 rounded-lg flex items-center justify-center text-white transition-colors"
             title="Zoom In"
           >
@@ -756,7 +1208,7 @@ function ObsidianGraph() {
             </svg>
           </button>
           <button
-            onClick={() => setTransform(prev => ({ ...prev, scale: Math.max(0.3, prev.scale * 0.8) }))}
+            onClick={zoomOut}
             className="w-8 h-8 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/50 rounded-lg flex items-center justify-center text-white transition-colors"
             title="Zoom Out"
           >
@@ -771,6 +1223,25 @@ function ObsidianGraph() {
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          
+          {/* Focus current step */}
+          <button
+            onClick={() => {
+              if (nodes.length > 0 && currentStep >= 0 && currentStep < nodes.length) {
+                const currentNode = nodes[currentStep];
+                if (currentNode) {
+                  focusOnNode(currentNode.x, currentNode.y, userPreferredZoom);
+                }
+              }
+            }}
+            className="w-8 h-8 bg-purple-600/80 hover:bg-purple-500/80 border border-purple-500/50 rounded-lg flex items-center justify-center text-white transition-colors"
+            title="Focus Current Step"
+            disabled={nodes.length === 0 || currentStep < 0}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
         </div>
@@ -984,6 +1455,98 @@ export default function DemoPage() {
     functionalUnit: '',
     type: 'Steel' as Project['type']
   });
+
+  // LCA Modeler State
+  const [currentStep, setCurrentStep] = useState(0);
+  const [inputs, setInputs] = useState<LCAInput[]>([
+    {
+      id: 'product',
+      label: 'Product Selection',
+      type: 'dropdown',
+      options: projects.map(p => `${p.name} (${p.functionalUnit})`),
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'location',
+      label: 'Factory Location',
+      type: 'dropdown',
+      options: ['India - Mumbai', 'India - Delhi', 'India - Chennai', 'India - Kolkata', 'India - Bangalore', 'China - Shanghai', 'USA - California', 'Germany - Berlin'],
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'energy',
+      label: 'Energy Source',
+      type: 'dropdown',
+      options: ['Coal', 'Natural Gas', 'Solar', 'Wind', 'Hydroelectric', 'Nuclear', 'Mixed Grid'],
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'electricity',
+      label: 'Electricity Consumption (kWh/unit)',
+      type: 'number',
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'scrapRate',
+      label: 'Process Scrap Rate (%)',
+      type: 'number',
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'scrapFate',
+      label: 'Scrap Fate',
+      type: 'dropdown',
+      options: ['Recycled Internally', 'Sold to Recycler', 'Sent to Landfill', 'Incinerated'],
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'waterUsage',
+      label: 'Water Usage (L/unit)',
+      type: 'number',
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'transport',
+      label: 'Transportation Mode',
+      type: 'dropdown',
+      options: ['Truck', 'Rail', 'Ship', 'Air', 'Combined'],
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'packaging',
+      label: 'Packaging Material',
+      type: 'dropdown',
+      options: ['Cardboard', 'Plastic', 'Metal', 'Wood', 'Mixed'],
+      value: '',
+      completed: false,
+      skipped: false
+    },
+    {
+      id: 'endOfLife',
+      label: 'End of Life Scenario',
+      type: 'dropdown',
+      options: ['Recycling', 'Landfill', 'Incineration', 'Reuse'],
+      value: '',
+      completed: false,
+      skipped: false
+    }
+  ]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -1381,12 +1944,18 @@ export default function DemoPage() {
             >
               {/* Left Panel - Input Forms */}
               <div className="w-1/3 bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-4 overflow-hidden">
-                <LifeCycleModeler projects={projects} />
+                <LifeCycleModeler 
+                  projects={projects} 
+                  inputs={inputs}
+                  setInputs={setInputs}
+                  currentStep={currentStep}
+                  setCurrentStep={setCurrentStep}
+                />
               </div>
               
               {/* Right Panel - Graph Visualization */}
               <div className="flex-1 bg-gradient-to-br from-gray-900/30 to-gray-800/20 p-4 overflow-hidden">
-                <ObsidianGraph />
+                <ObsidianGraph inputs={inputs} currentStep={currentStep} />
               </div>
             </motion.div>
           )}

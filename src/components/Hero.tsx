@@ -7,8 +7,10 @@ import Link from 'next/link';
 
 export default function Hero() {
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     const updateWindowSize = () => {
       setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
@@ -18,27 +20,34 @@ export default function Hero() {
     return () => window.removeEventListener('resize', updateWindowSize);
   }, []);
 
+  // Pre-generate consistent particle positions to avoid hydration mismatch
+  const particlePositions = Array.from({ length: 20 }, (_, i) => ({
+    initialX: (i * 137.5) % windowSize.width, // Use a deterministic pattern
+    initialY: (i * 97.3) % windowSize.height,
+    duration: 10 + (i % 10),
+  }));
+
   return (
     <section className="relative min-h-screen flex items-center justify-center bg-transparent overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0">
-        {/* Floating particles */}
+        {/* Floating particles - Only render on client */}
         <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
+          {isClient && particlePositions.map((particle, i) => (
             <motion.div
               key={i}
               className="absolute w-1 h-1 bg-purple-400/30 rounded-full"
               initial={{ 
-                x: Math.random() * windowSize.width, 
-                y: Math.random() * windowSize.height,
+                x: particle.initialX, 
+                y: particle.initialY,
                 opacity: 0
               }}
               animate={{ 
-                y: [null, Math.random() * windowSize.height],
+                y: [particle.initialY, (particle.initialY + 200) % windowSize.height],
                 opacity: [0, 1, 0]
               }}
               transition={{ 
-                duration: Math.random() * 10 + 10,
+                duration: particle.duration,
                 repeat: Infinity,
                 ease: "linear"
               }}
