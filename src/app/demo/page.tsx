@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Upload, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Factory, Truck, Recycle } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 
@@ -578,12 +578,6 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   }, []);
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-
-  // Transform coordinates based on current pan/zoom
-  const transformPoint = (x: number, y: number) => ({
-    x: (x + transform.x) * transform.scale,
-    y: (y + transform.y) * transform.scale
-  });
 
   // Get touch distance for pinch gestures
   const getTouchDistance = (touches: React.TouchList) => {
