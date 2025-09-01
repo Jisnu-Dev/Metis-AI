@@ -363,7 +363,7 @@ function LifeCycleModeler({
   );
 }
 
-// Enhanced Obsidian-style Graph Component with Pan & Zoom
+// Enhanced Obsidian-style Graph Component with Pan & Zoom - Updated
 function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentStep: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1.2 });
