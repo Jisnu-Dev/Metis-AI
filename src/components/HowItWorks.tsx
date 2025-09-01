@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Upload, Cpu, BarChart3, FileText, ArrowRight } from 'lucide-react';
+import { Upload, Cpu, BarChart3, FileText } from 'lucide-react';
 
 const steps = [
   {

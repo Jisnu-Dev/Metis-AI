@@ -6,11 +6,8 @@ import {
   Recycle, 
   BarChart3, 
   Target, 
-  Database, 
-  TrendingUp,
   Zap,
-  Shield,
-  Globe
+  Shield
 } from 'lucide-react';
 
 const features = [

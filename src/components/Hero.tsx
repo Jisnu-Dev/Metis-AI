@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Cpu, Recycle, BarChart3, Play, Users, Award, TrendingUp } from 'lucide-react';
+import { ArrowRight, Cpu, Recycle, BarChart3, Award, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 

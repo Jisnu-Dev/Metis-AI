@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 const faqs = [
   {
-    question: "How accurate is MetisAI's LCA analysis?",
+    question: "How accurate is MetisAI&apos;s LCA analysis?",
     answer: "Our AI-powered platform achieves 95% accuracy rates, verified through third-party audits and validated against traditional LCA methodologies. The system continuously learns and improves from each analysis."
   },
   {
@@ -56,7 +56,7 @@ export default function FAQ() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400"> Questions</span>
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Get answers to common questions about MetisAI's LCA platform
+            Get answers to common questions about MetisAI&apos;s LCA platform
           </p>
         </motion.div>
 
