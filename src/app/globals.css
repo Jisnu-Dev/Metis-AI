@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #000000;
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #111111;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #ff5252, #26a69a);
+  }
+
+  /* Remove all button borders and outlines globally */
+  button {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    transition: all 0.3s ease;
+  }
+
+  button:focus,
+  button:active,
+  button:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }/* Focus styles for accessibility */
+button:focus,
+a:focus {
+  outline: 2px solid #ff6b6b;
+  outline-offset: 2px;
+}
+
+/* Ensure seamless section transitions */
+section {
+  position: relative;
+  z-index: 1;
+}
+
+/* Remove any potential background bleeding */
+main {
+  background: transparent;
+}
+
+/* Smooth section blending */
+.section-blend {
+  background: transparent;
+  backdrop-filter: blur(0px);
+}
+
+/* Enhanced glass morphism effects */
+.glass-effect {
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-nav {
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Subtle shadow for glass nav */
+header {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
