@@ -201,58 +201,58 @@ function LifeCycleModeler({
   const currentInput = inputs[currentStep];
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col">
       {/* Streamlined Header Section */}
-      <div className="mb-6 flex-shrink-0">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-            <Play className="w-5 h-5 text-white" />
+      <div className="mb-4 sm:mb-6 flex-shrink-0">
+        <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">Life Cycle Modeler</h2>
-            <p className="text-gray-400 text-sm">Configure your LCA parameters</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Life Cycle Modeler</h2>
+            <p className="text-gray-400 text-xs sm:text-sm">Configure your LCA parameters</p>
           </div>
         </div>
       </div>
 
-      {/* Professional Input Card */}
-      <div className="flex-1 relative">
-        <div className="h-full bg-gradient-to-br from-gray-900/95 via-gray-800/90 to-gray-900/95 backdrop-blur-xl border border-gray-600/30 rounded-2xl shadow-2xl overflow-hidden">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto pb-4 scrollbar-thin scrollbar-track-gray-800/30 scrollbar-thumb-purple-500/40 hover:scrollbar-thumb-purple-400/50 scroll-smooth">
+        <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/90 to-gray-900/95 backdrop-blur-xl border border-gray-600/30 rounded-xl sm:rounded-2xl shadow-2xl">
           
           {/* Subtle background pattern */}
-          <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0 opacity-5 rounded-xl sm:rounded-2xl overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-transparent to-pink-500/20"></div>
           </div>
 
-          <div className="relative z-10 h-full p-6 flex flex-col">
+          <div className="relative z-10 p-4 sm:p-6 min-h-full flex flex-col">
             
             {/* Header with Title & Progress */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="mb-4 sm:mb-6 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+                <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg sm:rounded-xl flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg flex-shrink-0">
                     {currentStep + 1}
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white leading-tight">{currentInput.label}</h3>
-                    <div className="text-sm text-gray-400 mt-1">Step {currentStep + 1} of {inputs.length}</div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-bold text-white leading-tight truncate">{currentInput.label}</h3>
+                    <div className="text-xs sm:text-sm text-gray-400 mt-1">Step {currentStep + 1} of {inputs.length}</div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-purple-400">
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xl sm:text-2xl font-bold text-purple-400">
                     {Math.round(((inputs.filter(i => i.completed).length) / inputs.length) * 100)}%
                   </div>
-                  <div className="text-sm text-gray-400">Complete</div>
+                  <div className="text-xs sm:text-sm text-gray-400">Complete</div>
                 </div>
               </div>
               
               {/* Step Description */}
-              <div className="bg-gradient-to-r from-gray-800/40 to-gray-700/40 backdrop-blur-sm rounded-xl p-4 border border-gray-600/20">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 mt-1">
+              <div className="bg-gradient-to-r from-gray-800/40 to-gray-700/40 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-600/20">
+                <div className="flex items-start space-x-2 sm:space-x-3">
+                  <div className="flex-shrink-0 mt-0.5 sm:mt-1">
                     {getStepIcon(currentInput.id)}
                   </div>
-                  <p className="text-gray-300 text-sm leading-relaxed">
+                  <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
                     {getStepDescription(currentInput.id)}
                   </p>
                 </div>
@@ -260,8 +260,8 @@ function LifeCycleModeler({
             </div>
 
             {/* Your Input Section */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-200 mb-3 uppercase tracking-wide">
+            <div className="mb-4 sm:mb-6">
+              <label className="block text-xs sm:text-sm font-semibold text-gray-200 mb-2 sm:mb-3 uppercase tracking-wide">
                 Your Input
               </label>
               
@@ -270,15 +270,15 @@ function LifeCycleModeler({
                   <select
                     value={currentInput.value}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-xl px-4 py-3 text-white focus:outline-none transition-all duration-300 appearance-none cursor-pointer text-sm"
+                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-lg sm:rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-white focus:outline-none transition-all duration-300 appearance-none cursor-pointer text-sm"
                   >
                     <option value="" className="bg-gray-800">Choose an option...</option>
                     {currentInput.options?.map((option, index) => (
                       <option key={index} value={option} className="bg-gray-800">{option}</option>
                     ))}
                   </select>
-                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -291,11 +291,11 @@ function LifeCycleModeler({
                     type={currentInput.type}
                     value={currentInput.value}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-xl px-4 py-3 text-white focus:outline-none transition-all duration-300 placeholder-gray-400 text-sm"
+                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-lg sm:rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-white focus:outline-none transition-all duration-300 placeholder-gray-400 text-sm pr-16"
                     placeholder={getPlaceholder(currentInput.id)}
                   />
                   {currentInput.type === 'number' && (
-                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-purple-300 text-sm font-medium bg-purple-500/20 px-3 py-1 rounded-lg">
+                    <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-purple-300 text-xs sm:text-sm font-medium bg-purple-500/20 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg">
                       {getUnit(currentInput.id)}
                     </div>
                   )}
@@ -304,51 +304,51 @@ function LifeCycleModeler({
             </div>
 
             {/* Input Status & Tips */}
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               {currentInput.value ? (
-                <div className="flex items-center space-x-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                  <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
+                <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 bg-green-500/10 border border-green-500/30 rounded-lg sm:rounded-xl">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
                   </div>
                   <div>
-                    <div className="text-green-400 text-sm font-medium">Input Received</div>
-                    <div className="text-green-300/80 text-sm">Ready to proceed</div>
+                    <div className="text-green-400 text-xs sm:text-sm font-medium">Input Received</div>
+                    <div className="text-green-300/80 text-xs sm:text-sm">Ready to proceed</div>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center space-x-3 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                  <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg sm:rounded-xl">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="text-blue-400 text-sm font-medium">Awaiting Input</div>
-                    <div className="text-blue-300/80 text-sm">Enter data above</div>
+                    <div className="text-blue-400 text-xs sm:text-sm font-medium">Awaiting Input</div>
+                    <div className="text-blue-300/80 text-xs sm:text-sm">Enter data above</div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Enhanced Progress Section */}
-            <div className="mb-6 flex-1">
-              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm border border-gray-600/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                      <Activity className="w-4 h-4 text-white" />
+            <div className="mb-4 sm:mb-6">
+              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm border border-gray-600/30 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-md sm:rounded-lg flex items-center justify-center">
+                      <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                     </div>
-                    <span className="text-sm font-semibold text-gray-200">Overall Progress</span>
+                    <span className="text-xs sm:text-sm font-semibold text-gray-200">Overall Progress</span>
                   </div>
-                  <div className="text-sm text-purple-400 font-semibold">
+                  <div className="text-xs sm:text-sm text-purple-400 font-semibold">
                     {inputs.filter(i => i.completed).length} / {inputs.length}
                   </div>
                 </div>
                 
                 <div className="relative">
-                  <div className="w-full bg-gray-700/60 rounded-full h-3 overflow-hidden">
+                  <div className="w-full bg-gray-700/60 rounded-full h-2 sm:h-3 overflow-hidden">
                     <div 
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500 relative"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 sm:h-3 rounded-full transition-all duration-500 relative"
                       style={{ width: `${(inputs.filter(i => i.completed).length / inputs.length) * 100}%` }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-full"></div>
@@ -356,7 +356,7 @@ function LifeCycleModeler({
                   </div>
                   
                   {/* Progress milestones */}
-                  <div className="flex justify-between text-sm text-gray-500 mt-2">
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 sm:mt-2">
                     <span className={inputs.filter(i => i.completed).length >= 1 ? 'text-purple-400' : ''}>
                       Started
                     </span>
@@ -371,42 +371,48 @@ function LifeCycleModeler({
               </div>
             </div>
 
+            {/* Flexible spacer to push navigation to bottom */}
+            <div className="flex-1"></div>
+
             {/* Navigation Buttons - Fixed at bottom */}
-            <div className="flex items-center justify-between space-x-3 flex-shrink-0">
+            <div className="flex items-center justify-between space-x-2 sm:space-x-3 flex-shrink-0 pt-2">
               <button
                 onClick={handlePrevious}
                 disabled={currentStep === 0}
-                className="group flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-gray-700/80 to-gray-600/80 hover:from-gray-600/80 hover:to-gray-500/80 disabled:from-gray-800/50 disabled:to-gray-800/50 disabled:text-gray-500 text-white rounded-xl transition-all duration-300 disabled:cursor-not-allowed border border-gray-500/30 hover:border-gray-400/50 disabled:border-gray-700/30 text-sm font-medium"
+                className="group flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-gray-700/80 to-gray-600/80 hover:from-gray-600/80 hover:to-gray-500/80 disabled:from-gray-800/50 disabled:to-gray-800/50 disabled:text-gray-500 text-white rounded-lg sm:rounded-xl transition-all duration-300 disabled:cursor-not-allowed border border-gray-500/30 hover:border-gray-400/50 disabled:border-gray-700/30 text-xs sm:text-sm font-medium"
               >
-                <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 sm:w-4 sm:h-4 group-hover:-translate-x-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Previous</span>
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
               </button>
               
               <button
                 onClick={handleSkip}
-                className="group flex items-center space-x-2 px-4 py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 hover:border-amber-400/60 text-amber-300 hover:text-amber-200 rounded-xl transition-all duration-300 font-medium text-sm"
+                className="group flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 sm:py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 hover:border-amber-400/60 text-amber-300 hover:text-amber-200 rounded-lg sm:rounded-xl transition-all duration-300 font-medium text-xs sm:text-sm"
               >
-                <Circle className="w-4 h-4" />
+                <Circle className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Skip</span>
               </button>
               
               {currentStep === inputs.length - 1 ? (
                 <button
                   onClick={handleComplete}
-                  className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-green-500/25 transform hover:scale-105 text-sm"
+                  className="group flex items-center space-x-1 sm:space-x-2 px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg sm:rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-green-500/25 transform hover:scale-105 text-xs sm:text-sm"
                 >
-                  <span>Complete Analysis</span>
-                  <CheckCircle className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="hidden sm:inline">Complete Analysis</span>
+                  <span className="sm:hidden">Complete</span>
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 group-hover:scale-110 transition-transform duration-200" />
                 </button>
               ) : (
                 <button
                   onClick={handleNext}
-                  className="group flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 text-sm"
+                  className="group flex items-center space-x-1 sm:space-x-2 px-4 sm:px-5 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg sm:rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 text-xs sm:text-sm"
                 >
-                  <span>Next Step</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+                  <span className="hidden sm:inline">Next Step</span>
+                  <span className="sm:hidden">Next</span>
+                  <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
                 </button>
               )}
             </div>
@@ -2725,9 +2731,14 @@ export default function DemoPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
                 className="h-[calc(100vh-64px)] flex overflow-hidden pl-4 pr-8"
+                style={{ 
+                  minWidth: '1200px',
+                  transform: 'scale(min(1, calc(100vw / 1200px)))',
+                  transformOrigin: 'top left'
+                }}
               >
                 {/* Left Panel - Input Forms */}
-                <div className="w-[32rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-4 overflow-hidden ml-20">
+                <div className="w-[32rem] min-w-[28rem] max-w-[36rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-3 sm:p-4 overflow-y-auto ml-20 scrollbar-thin scrollbar-track-gray-800/50 scrollbar-thumb-purple-500/50 hover:scrollbar-thumb-purple-400/60">
                   <LifeCycleModeler 
                     inputs={inputs}
                     setInputs={setInputs}
