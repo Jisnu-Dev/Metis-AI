@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -49,7 +49,9 @@ function LifeCycleModeler({
   setCurrentStep,
   onShowMissingValuesPopup,
   onComplete,
-  onInputChange
+  onInputChange,
+  viewMode = 'edit',
+  currentProject = null
 }: { 
   inputs: LCAInput[];
   setInputs: React.Dispatch<React.SetStateAction<LCAInput[]>>;
@@ -58,6 +60,9 @@ function LifeCycleModeler({
   onShowMissingValuesPopup: (missingInputs: LCAInput[]) => void;
   onComplete: () => void;
   onInputChange?: () => void;
+  readOnly?: boolean;
+  viewMode?: 'edit' | 'view';
+  currentProject?: Project | null;
 }) {
 
   // Helper functions for enhanced UI
@@ -159,10 +164,10 @@ function LifeCycleModeler({
       setInputs(updatedInputs);
     }
 
-    // Check for missing values across ALL inputs (not completed and not skipped)
-    const missingInputs = updatedInputs.filter(input => !input.completed && !input.skipped);
+    // Check for missing values across ALL inputs (not completed, including skipped)
+    const missingInputs = updatedInputs.filter(input => !input.completed);
     
-    // Always show popup if there are ANY missing values
+    // Always show popup if there are ANY missing values (including skipped)
     if (missingInputs.length > 0) {
       // Show popup for missing values
       onShowMissingValuesPopup(missingInputs);
@@ -204,14 +209,47 @@ function LifeCycleModeler({
     <div className="h-full flex flex-col">
       {/* Streamlined Header Section */}
       <div className="mb-4 sm:mb-6 flex-shrink-0">
-        <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-            <Play className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+              <Play className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
+                {viewMode === 'view' && currentProject 
+                  ? `${currentProject.name} - Analysis` 
+                  : 'Life Cycle Modeler'
+                }
+              </h2>
+              <p className="text-gray-400 text-xs sm:text-sm">
+                {viewMode === 'view' 
+                  ? 'Viewing completed project analysis' 
+                  : 'Configure your LCA parameters'
+                }
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Life Cycle Modeler</h2>
-            <p className="text-gray-400 text-xs sm:text-sm">Configure your LCA parameters</p>
-          </div>
+          
+          {/* Start Over Button - only show in edit mode or when there are inputs to reset */}
+          {(viewMode === 'edit' || inputs.some(input => input.completed || input.value)) && (
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to start over? This will clear all current inputs and progress.')) {
+                  // We need to call a parent function since this component can't directly access resetToFirstInput
+                  // For now, we'll emit an event that the parent can listen to
+                  const event = new CustomEvent('resetInputs');
+                  window.dispatchEvent(event);
+                }
+              }}
+              className="flex items-center space-x-2 bg-gradient-to-r from-red-600/80 to-red-700/80 hover:from-red-600 hover:to-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all duration-300 border border-red-500/30 hover:border-red-400/50 shadow-lg hover:shadow-red-500/25"
+              title="Start Over - Reset all inputs"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">Start Over</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -451,8 +489,6 @@ function ObsidianGraph({
   currentStep, 
   selectedNode, 
   setSelectedNode,
-  autoFocusOnMount = false,
-  analysisComplete = false,
   initialNodes,
   onNodesChange,
   onNodeInfoUpdate
@@ -483,7 +519,7 @@ function ObsidianGraph({
   };
 
   // Get detailed node information including resource depletion
-  const getNodeInfo = (node: GraphNode): NodeInfo => {
+  const getNodeInfo = useCallback((node: GraphNode): NodeInfo => {
     const nodeInfo: NodeInfo = {
       title: node.label,
       description: '',
@@ -647,7 +683,7 @@ function ObsidianGraph({
     }
 
     return nodeInfo;
-  };
+  }, [getCurrentValue]);
 
   // Update parent with current node info when selectedNode changes
   useEffect(() => {
@@ -658,7 +694,7 @@ function ObsidianGraph({
         onNodeInfoUpdate(null);
       }
     }
-  }, [selectedNode, onNodeInfoUpdate]);
+  }, [selectedNode, onNodeInfoUpdate, getNodeInfo]);
 
   // Auto-focus state for new nodes (using setter only)
   const [, setAutoFocusEnabled] = useState(true);
@@ -737,8 +773,9 @@ function ObsidianGraph({
     const centerY = (minY + maxY) / 2;
     
     // Calculate scale to fit all nodes with some padding
-    const canvasWidth = canvas.width / window.devicePixelRatio;
-    const canvasHeight = canvas.height / window.devicePixelRatio;
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const canvasWidth = canvas.width / devicePixelRatio;
+    const canvasHeight = canvas.height / devicePixelRatio;
     const scaleX = canvasWidth / contentWidth;
     const scaleY = canvasHeight / contentHeight;
     const optimalScale = Math.min(scaleX, scaleY, 1.2); // Cap at 1.2x for readability
@@ -760,8 +797,9 @@ function ObsidianGraph({
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const centerX = (canvas.width / devicePixelRatio) / 2;
+    const centerY = (canvas.height / devicePixelRatio) / 2;
     
     // Use user's preferred zoom if no specific scale is provided
     const finalScale = targetScale || userPreferredZoom;
@@ -775,6 +813,11 @@ function ObsidianGraph({
       y: targetY,
       scale: finalScale
     });
+    
+    // Also update user preferred zoom to maintain this zoom level
+    if (targetScale) {
+      setUserPreferredZoom(finalScale);
+    }
   }, [userPreferredZoom]);
 
   // Update nodes when inputs or currentStep changes
@@ -799,12 +842,11 @@ function ObsidianGraph({
         const newNode = updatedNodes[newNodeIndex];
         
         if (newNode) {
-          setAutoFocusEnabled(true); // Enable auto-focus for new nodes
           setTimeout(() => {
-            // Focus specifically on the new node with a good zoom level
+            // Focus on the new node with a good zoom level but don't reset the view
             const focusZoom = Math.max(userPreferredZoom, 1.5); // Ensure good zoom for new node
             focusOnNode(newNode.x, newNode.y, focusZoom);
-          }, 200); // Small delay to ensure node is rendered
+          }, 300); // Delay to ensure node is properly rendered
         }
       }
       
@@ -828,32 +870,42 @@ function ObsidianGraph({
   // Notify parent when nodes change (for saving projects) - but only when explicitly requested
   useEffect(() => {
     if (onNodesChange && shouldNotifyParent.current) {
+      // Mark this as a user-driven graph update before notifying parent
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('userGraphUpdate'));
+      }
       onNodesChange(nodes);
       shouldNotifyParent.current = false;
     }
   }, [nodes, onNodesChange]);
 
-  // Auto-focus to overview when component mounts (when modeler tab is opened)
-  useEffect(() => {
-    if (autoFocusOnMount && nodes.length > 0) {
-      const timer = setTimeout(() => {
-        resetToOverview();
-      }, 500); // Delay to ensure canvas is ready and nodes are rendered
-      
-      return () => clearTimeout(timer);
-    }
-  }, [autoFocusOnMount, resetToOverview, nodes.length]);
+  // Auto-focus to overview when component mounts (when modeler tab is opened) - DISABLED
+  // useEffect(() => {
+  //   if (autoFocusOnMount && nodes.length > 0 && !isFocusingOnNewNode) {
+  //     const timer = setTimeout(() => {
+  //       // Only reset to overview if we're not currently focusing on a new node
+  //       if (!isFocusingOnNewNode) {
+  //         resetToOverview();
+  //       }
+  //     }, 500); // Delay to ensure canvas is ready and nodes are rendered
+  //     
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [autoFocusOnMount, resetToOverview, nodes.length, isFocusingOnNewNode]);
 
-  // Auto-focus to overview when analysis is completed
-  useEffect(() => {
-    if (analysisComplete && nodes.length > 0) {
-      const timer = setTimeout(() => {
-        resetToOverview();
-      }, 800); // Delay to allow for smooth completion transition
-      
-      return () => clearTimeout(timer);
-    }
-  }, [analysisComplete, nodes.length, resetToOverview]);
+  // Auto-focus to overview when analysis is completed - DISABLED
+  // useEffect(() => {
+  //   if (analysisComplete && nodes.length > 0 && !isFocusingOnNewNode) {
+  //     const timer = setTimeout(() => {
+  //       // Only reset to overview if we're not currently focusing on a new node
+  //       if (!isFocusingOnNewNode) {
+  //         resetToOverview();
+  //       }
+  //     }, 800); // Delay to allow for smooth completion transition
+  //     
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [analysisComplete, nodes.length, resetToOverview, isFocusingOnNewNode]);
 
   // Keyboard event handler for zoom shortcuts
   useEffect(() => {
@@ -1204,41 +1256,7 @@ function ObsidianGraph({
 
   // Reset view function - shows full graph overview
   const resetView = () => {
-    // Calculate bounds of all nodes
-    if (nodes.length === 0) {
-      setTargetTransform({ x: 0, y: 0, scale: 1 });
-      setUserPreferredZoom(1);
-      return;
-    }
-
-    const padding = 100;
-    const minX = Math.min(...nodes.map(n => n.x)) - padding;
-    const maxX = Math.max(...nodes.map(n => n.x)) + padding;
-    const minY = Math.min(...nodes.map(n => n.y)) - padding;
-    const maxY = Math.max(...nodes.map(n => n.y)) + padding;
-
-    const graphWidth = maxX - minX;
-    const graphHeight = maxY - minY;
-    const canvas = canvasRef.current;
-    
-    if (canvas) {
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
-      
-      // Calculate scale to fit all nodes with padding
-      const scaleX = canvasWidth / graphWidth;
-      const scaleY = canvasHeight / graphHeight;
-      const scale = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 1x
-      
-      // Center the graph
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const x = canvasWidth / 2 - centerX * scale;
-      const y = canvasHeight / 2 - centerY * scale;
-      
-      setTargetTransform({ x, y, scale });
-      setUserPreferredZoom(scale);
-    }
+    resetToOverview();
   };
 
   useEffect(() => {
@@ -1760,6 +1778,9 @@ export default function DemoPage() {
   // Current project being worked on in the modeler
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
+  // Project view mode - 'edit' for creating/editing, 'view' for viewing completed projects
+  const [viewMode, setViewMode] = useState<'edit' | 'view'>('edit');
+
   // LCA Modeler State
   const [currentStep, setCurrentStep] = useState(0);
   const [inputs, setInputs] = useState<LCAInput[]>([
@@ -1866,6 +1887,7 @@ export default function DemoPage() {
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [projectSaved, setProjectSaved] = useState(false);
   const [showSaveProjectPrompt, setShowSaveProjectPrompt] = useState(false);
+  const [isUserGraphUpdate, setIsUserGraphUpdate] = useState(false);
 
   // Helper function to get current input value
   const getCurrentValue = (inputId: string) => {
@@ -1873,14 +1895,136 @@ export default function DemoPage() {
     return input?.value || '';
   };
 
-  // Check if all inputs are filled and prompt to save if needed
-  const checkAndPromptSave = () => {
-    // Only prompt save when ALL inputs are completed with actual values (not skipped)
-    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
-    if (allInputsCompleted && !analysisComplete && !showSaveProjectPrompt && !currentProject) {
-      setShowSaveProjectPrompt(true);
+  // Helper function to check if product selection matches existing project
+  const getProjectMatchInfo = () => {
+    const productSelection = getCurrentValue('product');
+    const existingProject = projects.find(p => 
+      `${p.name} (${p.functionalUnit})` === productSelection
+    );
+    
+    return {
+      isExistingProject: !!existingProject,
+      project: existingProject,
+      productSelection: productSelection
+    };
+  };
+
+  // Reset inputs to start from the beginning
+  const resetToFirstInput = useCallback(() => {
+    // Reset to fresh inputs
+    const freshInputs: LCAInput[] = [
+      {
+        id: 'product',
+        label: 'Product Selection',
+        type: 'dropdown',
+        options: projects.map(p => `${p.name} (${p.functionalUnit})`),
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'location',
+        label: 'Factory Location',
+        type: 'dropdown',
+        options: ['India - Mumbai', 'India - Delhi', 'India - Chennai', 'India - Kolkata', 'India - Bangalore', 'China - Shanghai', 'USA - California', 'Germany - Berlin'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'energy',
+        label: 'Energy Source',
+        type: 'dropdown',
+        options: ['Coal', 'Natural Gas', 'Solar', 'Wind', 'Hydroelectric', 'Nuclear', 'Mixed Grid'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'electricity',
+        label: 'Electricity Consumption (kWh/unit)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'scrapRate',
+        label: 'Scrap Rate (%)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'scrapFate',
+        label: 'Scrap Material Fate',
+        type: 'dropdown',
+        options: ['Recycled Internally', 'Sold to External Recycler', 'Landfilled', 'Incinerated'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'waterUsage',
+        label: 'Water Usage (L/unit)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'wasteGeneration',
+        label: 'Waste Generation (kg/unit)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'endOfLife',
+        label: 'End-of-Life Treatment',
+        type: 'dropdown',
+        options: ['Recycling', 'Landfill', 'Incineration', 'Reuse'],
+        value: '',
+        completed: false,
+        skipped: false
+      }
+    ];
+
+    setInputs(freshInputs);
+    setCurrentStep(0);
+    setAnalysisComplete(false);
+    setGraphNodes([]);
+    setCurrentProject(null);
+    setViewMode('edit');
+    setSelectedNode(null);
+    setCurrentNodeInfo(null);
+  }, [projects]);
+
+  // Handle graph nodes change and auto-reset if needed
+  const handleGraphNodesChange = (newNodes: GraphNode[]) => {
+    // Update graph nodes
+    setGraphNodes(newNodes);
+    
+    // Auto-reset inputs when graph is updated by user interaction (not programmatic loading)
+    if (isUserGraphUpdate && analysisComplete && newNodes.length > 0) {
+      // Reset inputs and start fresh
+      setTimeout(() => {
+        resetToFirstInput();
+        setIsUserGraphUpdate(false); // Reset the flag
+      }, 500); // Small delay to let the graph update complete
     }
   };
+
+  // Check if all inputs are filled and prompt to save if needed
+  const checkAndPromptSave = useCallback(() => {
+    // Only prompt save when ALL inputs are completed with actual values (not skipped)
+    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
+    if (allInputsCompleted && !analysisComplete && !showSaveProjectPrompt) {
+      setShowSaveProjectPrompt(true);
+    }
+  }, [inputs, analysisComplete, showSaveProjectPrompt]);
 
   // Save project with name from product selection
   const saveProjectFromPrompt = () => {
@@ -1915,7 +2059,7 @@ export default function DemoPage() {
       // Update current project reference
       setCurrentProject(updatedProject);
     } else {
-      // Create new project only if no current project (fallback)
+      // Check if product selection matches an existing project
       const productSelection = getCurrentValue('product');
       const projectName = productSelection || 'LCA Analysis';
       
@@ -1924,27 +2068,57 @@ export default function DemoPage() {
       const cleanName = match ? match[1] : projectName;
       const functionalUnit = match ? match[2] : '1 unit';
       
-      const newProjectId = `project_${Date.now()}`;
+      // Look for existing project that matches the product selection
+      const existingProject = projects.find(p => 
+        `${p.name} (${p.functionalUnit})` === productSelection
+      );
       
-      const savedProject: Project = {
-        id: newProjectId,
-        name: cleanName,
-        description: `LCA analysis for ${cleanName}`,
-        functionalUnit: functionalUnit,
-        createdDate: new Date().toISOString().split('T')[0],
-        lastModified: new Date().toISOString().split('T')[0],
-        status: 'Completed',
-        type: 'Other', // Default type, can be improved based on product selection
-        lcaData: {
-          inputs: [...inputs],
-          graphNodes: [...graphNodes],
-          analysisComplete: true
-        }
-      };
+      if (existingProject) {
+        // Update existing project with LCA data
+        const updatedProject: Project = {
+          ...existingProject,
+          lastModified: new Date().toISOString().split('T')[0],
+          status: 'Completed',
+          lcaData: {
+            inputs: [...inputs],
+            graphNodes: [...graphNodes],
+            analysisComplete: true
+          }
+        };
 
-      // Add the project to the projects list
-      setProjects(prevProjects => [...prevProjects, savedProject]);
-      setCurrentProject(savedProject);
+        // Update the project in the projects list
+        setProjects(prevProjects => 
+          prevProjects.map(project => 
+            project.id === existingProject.id ? updatedProject : project
+          )
+        );
+
+        // Set as current project
+        setCurrentProject(updatedProject);
+      } else {
+        // Create new project only if no matching project found
+        const newProjectId = `project_${Date.now()}`;
+        
+        const savedProject: Project = {
+          id: newProjectId,
+          name: cleanName,
+          description: `LCA analysis for ${cleanName}`,
+          functionalUnit: functionalUnit,
+          createdDate: new Date().toISOString().split('T')[0],
+          lastModified: new Date().toISOString().split('T')[0],
+          status: 'Completed',
+          type: 'Other', // Default type, can be improved based on product selection
+          lcaData: {
+            inputs: [...inputs],
+            graphNodes: [...graphNodes],
+            analysisComplete: true
+          }
+        };
+
+        // Add the project to the projects list
+        setProjects(prevProjects => [...prevProjects, savedProject]);
+        setCurrentProject(savedProject);
+      }
     }
     
     setAnalysisComplete(true);
@@ -1963,6 +2137,11 @@ export default function DemoPage() {
     // Save current project progress before switching tabs
     if (activeTab === 'modeler') {
       saveCurrentProjectProgress();
+    }
+    
+    // Reset to edit mode when switching to modeler tab from other tabs (for new analysis)
+    if (tab === 'modeler' && activeTab !== 'modeler' && !currentProject) {
+      setViewMode('edit');
     }
     
     setActiveTab(tab);
@@ -2022,6 +2201,9 @@ export default function DemoPage() {
       setNewProject({ name: '', description: '', functionalUnit: '', type: 'Steel' });
       setEditingProject(null);
       setShowCreateModal(false);
+      
+      // Reset graph and inputs immediately after update
+      resetToFirstInput();
     }
   };
 
@@ -2057,8 +2239,8 @@ export default function DemoPage() {
   const handleComplete = () => {
     setAnalysisComplete(true);
     
-    // Save the current analysis as a completed project
-    saveCurrentProject();
+    // Show save prompt instead of automatically saving
+    setShowSaveProjectPrompt(true);
     
     // Trigger showing full graph view
     setTimeout(() => {
@@ -2067,68 +2249,6 @@ export default function DemoPage() {
   };
 
   // Save current LCA analysis as a project
-  const saveCurrentProject = () => {
-    // Only save if all inputs are completed with actual values
-    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
-    if (!allInputsCompleted) {
-      console.warn('Cannot save project: Not all inputs are completed with values');
-      return;
-    }
-
-    // If we have a current project, update it; otherwise create new one
-    if (currentProject) {
-      // Update existing project
-      const updatedProject: Project = {
-        ...currentProject,
-        lastModified: new Date().toISOString().split('T')[0],
-        status: 'Completed',
-        lcaData: {
-          inputs: [...inputs],
-          graphNodes: [...graphNodes],
-          analysisComplete: true
-        }
-      };
-
-      // Update the project in the projects list
-      setProjects(prevProjects => 
-        prevProjects.map(project => 
-          project.id === currentProject.id ? updatedProject : project
-        )
-      );
-
-      // Update current project reference
-      setCurrentProject(updatedProject);
-    } else {
-      // Create new project only if no current project (fallback)
-      const newProjectId = `project_${Date.now()}`;
-      const projectName = `LCA Analysis ${new Date().toLocaleDateString()}`;
-      
-      const newProject: Project = {
-        id: newProjectId,
-        name: projectName,
-        description: 'Completed LCA analysis with full data inputs',
-        functionalUnit: '1 unit',
-        createdDate: new Date().toISOString().split('T')[0],
-        lastModified: new Date().toISOString().split('T')[0],
-        status: 'Completed',
-        type: 'Other',
-        lcaData: {
-          inputs: [...inputs],
-          graphNodes: [...graphNodes],
-          analysisComplete: true
-        }
-      };
-
-      // Add new project to the list
-      setProjects(prevProjects => [...prevProjects, newProject]);
-      setCurrentProject(newProject);
-    }
-    
-    // Show success notification
-    setProjectSaved(true);
-    setTimeout(() => setProjectSaved(false), 3000);
-  };
-
   // Initialize fresh inputs for a specific project
   const initializeInputsForProject = (project: Project): LCAInput[] => {
     return [
@@ -2214,7 +2334,7 @@ export default function DemoPage() {
   };
 
   // Save current project's progress (even if incomplete)
-  const saveCurrentProjectProgress = () => {
+  const saveCurrentProjectProgress = useCallback(() => {
     if (currentProject) {
       const updatedProjects = projects.map(project => {
         if (project.id === currentProject.id) {
@@ -2232,7 +2352,7 @@ export default function DemoPage() {
       });
       setProjects(updatedProjects);
     }
-  };
+  }, [currentProject, projects, inputs, graphNodes, analysisComplete]);
 
   // Open a saved completed project
   const openSavedProject = (project: Project) => {
@@ -2245,6 +2365,9 @@ export default function DemoPage() {
       setInputs(project.lcaData.inputs);
       setGraphNodes(project.lcaData.graphNodes);
       setAnalysisComplete(project.lcaData.analysisComplete);
+      
+      // Set view mode to 'view' for completed projects
+      setViewMode('view');
       
       // Reset current step to last incomplete step or 0
       const lastIncompleteIndex = project.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
@@ -2261,6 +2384,9 @@ export default function DemoPage() {
     saveCurrentProjectProgress();
     
     setCurrentProject(project);
+    
+    // Set view mode to 'edit' for draft/active projects
+    setViewMode('edit');
     
     // If project has saved LCA data, load it
     if (project.lcaData) {
@@ -2360,8 +2486,8 @@ export default function DemoPage() {
     setShowMissingValuesPopup(false);
     setAnalysisComplete(true);
     
-    // Save the completed project
-    saveCurrentProject();
+    // Show save prompt instead of automatically saving
+    setShowSaveProjectPrompt(true);
   };
 
   // Monitor inputs and check if all are filled to prompt save
@@ -2379,6 +2505,32 @@ export default function DemoPage() {
       return () => clearInterval(autoSaveInterval);
     }
   }, [currentProject, activeTab, inputs, graphNodes, analysisComplete, saveCurrentProjectProgress]);
+
+  // Listen for reset inputs event from LifeCycleModeler component
+  useEffect(() => {
+    const handleResetInputs = () => {
+      resetToFirstInput();
+    };
+
+    window.addEventListener('resetInputs', handleResetInputs);
+    
+    return () => {
+      window.removeEventListener('resetInputs', handleResetInputs);
+    };
+  }, [resetToFirstInput]);
+
+  // Listen for user graph update events to trigger auto-reset
+  useEffect(() => {
+    const handleUserGraphUpdate = () => {
+      setIsUserGraphUpdate(true);
+    };
+
+    window.addEventListener('userGraphUpdate', handleUserGraphUpdate);
+    
+    return () => {
+      window.removeEventListener('userGraphUpdate', handleUserGraphUpdate);
+    };
+  }, []);
 
   return (
     <main className="min-h-screen bg-black text-white relative">
@@ -2402,11 +2554,21 @@ export default function DemoPage() {
               <X className="w-5 h-5" />
             </button>
           </div>
-          {/* Back to Home Button */}
-          <Link href="/" className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors text-sm">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
-          </Link>
+          {/* Back Button */}
+          {viewMode === 'view' ? (
+            <button 
+              onClick={() => setActiveTab('projects')}
+              className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Projects</span>
+            </button>
+          ) : (
+            <Link href="/" className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors text-sm">
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Home</span>
+            </Link>
+          )}
         </div>
 
         {/* Navigation Items */}
@@ -2737,18 +2899,135 @@ export default function DemoPage() {
                   transformOrigin: 'top left'
                 }}
               >
-                {/* Left Panel - Input Forms */}
-                <div className="w-[32rem] min-w-[28rem] max-w-[36rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-3 sm:p-4 overflow-y-auto ml-20 scrollbar-thin scrollbar-track-gray-800/50 scrollbar-thumb-purple-500/50 hover:scrollbar-thumb-purple-400/60">
-                  <LifeCycleModeler 
-                    inputs={inputs}
-                    setInputs={setInputs}
-                    currentStep={currentStep}
-                    setCurrentStep={setCurrentStep}
-                    onShowMissingValuesPopup={handleShowMissingValuesPopup}
-                    onComplete={handleComplete}
-                    onInputChange={checkAndPromptSave}
-                  />
-                </div>
+                {/* Left Panel - Input Forms (Edit Mode) or Project Details (View Mode) */}
+                {viewMode === 'edit' ? (
+                  <div className="w-[32rem] min-w-[28rem] max-w-[36rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-3 sm:p-4 overflow-y-auto ml-20 scrollbar-thin scrollbar-track-gray-800/50 scrollbar-thumb-purple-500/50 hover:scrollbar-thumb-purple-400/60">
+                    <LifeCycleModeler 
+                      inputs={inputs}
+                      setInputs={setInputs}
+                      currentStep={currentStep}
+                      setCurrentStep={setCurrentStep}
+                      onShowMissingValuesPopup={handleShowMissingValuesPopup}
+                      onComplete={handleComplete}
+                      onInputChange={checkAndPromptSave}
+                      readOnly={false}
+                      viewMode={viewMode}
+                      currentProject={currentProject}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-[32rem] min-w-[28rem] max-w-[36rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-3 sm:p-4 overflow-y-auto ml-20 scrollbar-thin scrollbar-track-gray-800/50 scrollbar-thumb-purple-500/50 hover:scrollbar-thumb-purple-400/60">
+                    {/* Project Details Panel */}
+                    <div className="space-y-6">
+                      {/* Header */}
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-xl font-bold text-white">Project Details</h2>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to start a new analysis? This will clear all current inputs and reset to the beginning.')) {
+                                resetToFirstInput();
+                              }
+                            }}
+                            className="bg-gradient-to-r from-red-600/80 to-red-700/80 hover:from-red-600 hover:to-red-700 text-white font-semibold py-2 px-3 rounded-lg transition-all duration-300 flex items-center space-x-2 border border-red-500/30 hover:border-red-400/50"
+                            title="Start new analysis from beginning"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="hidden sm:inline">Start Over</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setViewMode('edit');
+                              // Reset to continue editing if needed
+                              if (currentProject) {
+                                continueProject(currentProject);
+                              }
+                            }}
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center space-x-2"
+                          >
+                            <Edit className="w-4 h-4" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Project Info */}
+                      {currentProject && (
+                        <div className="bg-gradient-to-br from-gray-800/50 to-gray-700/30 border border-gray-600/30 rounded-lg p-4 space-y-4">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-1">{currentProject.name}</h3>
+                            <p className="text-gray-400 text-sm">{currentProject.description}</p>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-400">Functional Unit:</span>
+                              <p className="text-white font-medium">{currentProject.functionalUnit}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Type:</span>
+                              <p className="text-white font-medium">{currentProject.type}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Status:</span>
+                              <span className={`px-2 py-1 rounded text-xs ${getStatusColor(currentProject.status)}`}>
+                                {currentProject.status}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Last Modified:</span>
+                              <p className="text-white font-medium">{currentProject.lastModified}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Analysis Summary */}
+                      {currentProject?.lcaData && (
+                        <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-500/20 rounded-lg p-4">
+                          <h4 className="text-lg font-semibold text-white mb-3 flex items-center space-x-2">
+                            <BarChart3 className="w-5 h-5 text-green-400" />
+                            <span>Analysis Summary</span>
+                          </h4>
+                          
+                          <div className="space-y-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Inputs Completed:</span>
+                              <span className="text-white font-medium">
+                                {currentProject.lcaData.inputs.filter(input => input.completed).length}/
+                                {currentProject.lcaData.inputs.length}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Graph Nodes:</span>
+                              <span className="text-white font-medium">{graphNodes.length}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Analysis Status:</span>
+                              <span className={`px-2 py-1 rounded text-xs ${analysisComplete ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                                {analysisComplete ? 'Complete' : 'In Progress'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Instructions */}
+                      <div className="bg-gradient-to-br from-blue-900/20 to-cyan-900/20 border border-blue-500/20 rounded-lg p-4">
+                        <h4 className="text-lg font-semibold text-white mb-2 flex items-center space-x-2">
+                          <Info className="w-5 h-5 text-blue-400" />
+                          <span>View Mode</span>
+                        </h4>
+                        <p className="text-gray-400 text-sm">
+                          You&apos;re viewing a completed project. Click on any node in the graph to see its details. 
+                          Use the Edit button above to make changes to this project.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Center Panel - Graph Visualization (Stable width) */}
                 <div 
@@ -2764,7 +3043,7 @@ export default function DemoPage() {
                     autoFocusOnMount={true}
                     analysisComplete={analysisComplete}
                     initialNodes={graphNodes}
-                    onNodesChange={setGraphNodes}
+                    onNodesChange={handleGraphNodesChange}
                     onNodeInfoUpdate={setCurrentNodeInfo}
                   />
                 </div>
@@ -3081,28 +3360,61 @@ export default function DemoPage() {
               </div>
               <h2 className="text-2xl font-bold mb-2 text-white">Analysis Complete!</h2>
               <p className="text-gray-300 leading-relaxed">
-                All inputs have been filled. Would you like to save this analysis as a project?
+                {(() => {
+                  const matchInfo = getProjectMatchInfo();
+                  return matchInfo.isExistingProject 
+                    ? `This analysis will be added to your existing project "${matchInfo.project?.name}".`
+                    : "All inputs have been filled. Would you like to save this analysis as a project?";
+                })()}
               </p>
             </div>
 
             <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-xl p-4 mb-6 border border-gray-600/30">
               <h3 className="text-sm font-semibold text-gray-200 mb-2 flex items-center">
                 <FolderOpen className="w-4 h-4 mr-2 text-green-400" />
-                Project Details:
+                {(() => {
+                  const matchInfo = getProjectMatchInfo();
+                  return matchInfo.isExistingProject ? "Updating Project:" : "Project Details:";
+                })()}
               </h3>
               <div className="text-sm text-gray-300">
                 <div className="flex justify-between">
                   <span>Name:</span>
                   <span className="text-green-400 font-medium">
-                    {getCurrentValue('product') || 'LCA Analysis'}
+                    {(() => {
+                      const matchInfo = getProjectMatchInfo();
+                      const match = (matchInfo.productSelection || 'LCA Analysis').match(/^(.+?)\s*\((.+?)\)$/);
+                      return match ? match[1] : (matchInfo.productSelection || 'LCA Analysis');
+                    })()}
                   </span>
                 </div>
+                {(() => {
+                  const matchInfo = getProjectMatchInfo();
+                  if (matchInfo.isExistingProject && matchInfo.project) {
+                    return (
+                      <>
+                        <div className="flex justify-between mt-1">
+                          <span>Status:</span>
+                          <span className="text-blue-400 font-medium">Will be updated</span>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span>Created:</span>
+                          <span className="text-gray-400">{matchInfo.project.createdDate}</span>
+                        </div>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 
             <div className="flex space-x-4">
               <button
-                onClick={() => setShowSaveProjectPrompt(false)}
+                onClick={() => {
+                  setShowSaveProjectPrompt(false);
+                  setAnalysisComplete(true); // Allow user to continue without saving
+                }}
                 className="flex-1 bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 hover:text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 border border-gray-600/50 hover:border-gray-500/50"
               >
                 Continue Without Saving
@@ -3112,7 +3424,12 @@ export default function DemoPage() {
                 className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-green-500/25 transform hover:scale-105"
               >
                 <FolderOpen className="w-4 h-4" />
-                <span>Save Project</span>
+                <span>
+                  {(() => {
+                    const matchInfo = getProjectMatchInfo();
+                    return matchInfo.isExistingProject ? "Update Project" : "Save Project";
+                  })()}
+                </span>
               </button>
             </div>
           </motion.div>
@@ -3137,7 +3454,7 @@ export default function DemoPage() {
             </div>
             
             <p className="text-gray-300 mb-4 text-center leading-relaxed text-sm">
-              We found <span className="text-purple-400 font-semibold">{missingInputs.length} missing values</span> in your analysis. 
+              We found <span className="text-purple-400 font-semibold">{missingInputs.length} incomplete values</span> in your analysis. 
               Our AI can intelligently fill these with industry-standard estimates based on your existing inputs.
             </p>
 
@@ -3146,13 +3463,20 @@ export default function DemoPage() {
                 <svg className="w-4 h-4 mr-2 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.732 15.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                Missing Fields:
+                Incomplete Fields:
               </h3>
               <ul className="space-y-1 max-h-32 overflow-y-auto">
                 {missingInputs.map((input, index) => (
                   <li key={index} className="flex items-center text-xs text-gray-300">
-                    <div className="w-1.5 h-1.5 bg-red-400 rounded-full mr-2 flex-shrink-0"></div>
-                    {input.label}
+                    <div className={`w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0 ${
+                      input.skipped ? 'bg-yellow-400' : 'bg-red-400'
+                    }`}></div>
+                    <span className="flex-1">{input.label}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded text-white ${
+                      input.skipped ? 'bg-yellow-500/20 text-yellow-300' : 'bg-red-500/20 text-red-300'
+                    }`}>
+                      {input.skipped ? 'Skipped' : 'Missing'}
+                    </span>
                   </li>
                 ))}
               </ul>
