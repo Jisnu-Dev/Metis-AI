@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info, Download, PieChart, TrendingUp, Target, Award, Bell, Shield, Palette, Globe, Moon, Sun, Volume2, Monitor, Smartphone, Mail, Lock, Key, Save, Camera, Briefcase, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -491,7 +491,8 @@ function ObsidianGraph({
   setSelectedNode,
   initialNodes,
   onNodesChange,
-  onNodeInfoUpdate
+  onNodeInfoUpdate,
+  isLoadingSavedProject
 }: { 
   inputs: LCAInput[], 
   currentStep: number,
@@ -501,7 +502,8 @@ function ObsidianGraph({
   analysisComplete?: boolean,
   initialNodes?: GraphNode[],
   onNodesChange?: (nodes: GraphNode[]) => void,
-  onNodeInfoUpdate?: (nodeInfo: NodeInfo | null) => void
+  onNodeInfoUpdate?: (nodeInfo: NodeInfo | null) => void,
+  isLoadingSavedProject?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1.2 });
@@ -793,7 +795,7 @@ function ObsidianGraph({
   }, [nodes]);
 
   // Smooth camera focus function
-  const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number) => {
+  const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number, updateUserZoom: boolean = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
@@ -814,14 +816,19 @@ function ObsidianGraph({
       scale: finalScale
     });
     
-    // Also update user preferred zoom to maintain this zoom level
-    if (targetScale) {
+    // Only update user preferred zoom when explicitly requested
+    if (updateUserZoom && targetScale) {
       setUserPreferredZoom(finalScale);
     }
   }, [userPreferredZoom]);
 
   // Update nodes when inputs or currentStep changes
   useEffect(() => {
+    // Don't regenerate nodes when loading a saved project
+    if (isLoadingSavedProject) {
+      return;
+    }
+    
     const newNodes = generateNodes();
     
     // Preserve existing node positions when updating
@@ -844,8 +851,21 @@ function ObsidianGraph({
         if (newNode) {
           setTimeout(() => {
             // Focus on the new node with a good zoom level but don't reset the view
-            const focusZoom = Math.max(userPreferredZoom, 1.5); // Ensure good zoom for new node
-            focusOnNode(newNode.x, newNode.y, focusZoom);
+            const finalZoom = Math.max(userPreferredZoom, 1.5);
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const devicePixelRatio = window.devicePixelRatio || 1;
+              const centerX = (canvas.width / devicePixelRatio) / 2;
+              const centerY = (canvas.height / devicePixelRatio) / 2;
+              const targetX = centerX - newNode.x * finalZoom;
+              const targetY = centerY - newNode.y * finalZoom;
+              
+              setTargetTransform({
+                x: targetX,
+                y: targetY,
+                scale: finalZoom
+              });
+            }
           }, 300); // Delay to ensure node is properly rendered
         }
       }
@@ -855,11 +875,12 @@ function ObsidianGraph({
       
       return updatedNodes;
     });
-  }, [inputs, currentStep, userPreferredZoom, generateNodes, focusOnNode]);
+  }, [inputs, currentStep, isLoadingSavedProject, generateNodes]);
 
   // Handle initialNodes updates (for loading saved projects)
   useEffect(() => {
     if (initialNodes && initialNodes.length > 0) {
+      console.log('Loading saved nodes:', initialNodes.length);
       setNodes(initialNodes);
     }
   }, [initialNodes]);
@@ -1888,6 +1909,52 @@ export default function DemoPage() {
   const [projectSaved, setProjectSaved] = useState(false);
   const [showSaveProjectPrompt, setShowSaveProjectPrompt] = useState(false);
   const [isUserGraphUpdate, setIsUserGraphUpdate] = useState(false);
+  const [isLoadingSavedProject, setIsLoadingSavedProject] = useState(false);
+  const [viewingProjectAnalysis, setViewingProjectAnalysis] = useState<Project | null>(null);
+  const [showAnalysisPage, setShowAnalysisPage] = useState(false);
+  const [analysisSelectedNode, setAnalysisSelectedNode] = useState<GraphNode | null>(null);
+  const [analysisCurrentNodeInfo, setAnalysisCurrentNodeInfo] = useState<NodeInfo | null>(null);
+  const [selectedReportProject, setSelectedReportProject] = useState<Project | null>(null);
+
+  // Settings state
+  const [settings, setSettings] = useState({
+    theme: 'dark',
+    language: 'en',
+    notifications: {
+      email: true,
+      push: true,
+      reports: true,
+      updates: false
+    },
+    display: {
+      autoFocus: true,
+      animations: true,
+      highContrast: false,
+      fontSize: 'medium'
+    },
+    privacy: {
+      analytics: true,
+      crashReports: true,
+      shareData: false
+    }
+  });
+
+  // User profile state
+  const [userProfile, setUserProfile] = useState({
+    name: 'Jisnu Saravanan',
+    email: 'alex.johnson@company.com',
+    organization: 'Green Tech Solutions',
+    role: 'Sustainability Analyst',
+    avatar: '',
+    bio: 'Passionate about sustainable technology and environmental impact assessment.',
+    preferences: {
+      defaultProjectType: 'Product Development',
+      timezone: 'UTC-5',
+      dateFormat: 'MM/DD/YYYY'
+    }
+  });
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Helper function to get current input value
   const getCurrentValue = (inputId: string) => {
@@ -2356,26 +2423,9 @@ export default function DemoPage() {
 
   // Open a saved completed project
   const openSavedProject = (project: Project) => {
-    // Save current project progress before switching
-    saveCurrentProjectProgress();
-    
-    if (project.lcaData) {
-      // Load the project data
-      setCurrentProject(project);
-      setInputs(project.lcaData.inputs);
-      setGraphNodes(project.lcaData.graphNodes);
-      setAnalysisComplete(project.lcaData.analysisComplete);
-      
-      // Set view mode to 'view' for completed projects
-      setViewMode('view');
-      
-      // Reset current step to last incomplete step or 0
-      const lastIncompleteIndex = project.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
-      setCurrentStep(lastIncompleteIndex >= 0 ? lastIncompleteIndex : 0);
-      
-      // Switch to the modeler tab to view the analysis
-      setActiveTab('modeler');
-    }
+    // Set the project to view and show analysis page
+    setViewingProjectAnalysis(project);
+    setShowAnalysisPage(true);
   };
 
   // Continue working on a draft or active project
@@ -2390,6 +2440,10 @@ export default function DemoPage() {
     
     // If project has saved LCA data, load it
     if (project.lcaData) {
+      // Prevent auto-reset and node regeneration when loading saved project
+      setIsUserGraphUpdate(false);
+      setIsLoadingSavedProject(true);
+      
       setInputs(project.lcaData.inputs);
       setGraphNodes(project.lcaData.graphNodes);
       setAnalysisComplete(project.lcaData.analysisComplete);
@@ -2397,6 +2451,11 @@ export default function DemoPage() {
       // Set current step to the first incomplete input
       const firstIncompleteIndex = project.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
       setCurrentStep(firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0);
+      
+      // Reset the loading flag after a short delay to allow the graph to load
+      setTimeout(() => {
+        setIsLoadingSavedProject(false);
+      }, 100);
     } else {
       // Initialize fresh inputs for this project type
       const freshInputs = initializeInputsForProject(project);
@@ -2408,6 +2467,168 @@ export default function DemoPage() {
     
     // Switch to the modeler tab
     setActiveTab('modeler');
+  };
+
+  // Report generation functions
+  const generatePDFReport = (project: Project) => {
+    if (!project.lcaData) return;
+
+    // Create PDF content as HTML string
+    const htmlContent = `
+      <html>
+        <head>
+          <title>LCA Report - ${project.name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+            .header { text-align: center; margin-bottom: 40px; }
+            .title { font-size: 24px; font-weight: bold; color: #2563eb; }
+            .subtitle { font-size: 16px; color: #666; margin-top: 10px; }
+            .section { margin: 30px 0; }
+            .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 20px 0; }
+            .stat-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; text-align: center; }
+            .stat-value { font-size: 24px; font-weight: bold; color: #2563eb; }
+            .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
+            .input-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            .input-table th, .input-table td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
+            .input-table th { background-color: #f9fafb; font-weight: bold; }
+            .status-completed { color: #059669; font-weight: bold; }
+            .status-skipped { color: #d97706; font-weight: bold; }
+            .status-empty { color: #6b7280; }
+            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">Life Cycle Assessment Report</div>
+            <div class="subtitle">${project.name}</div>
+            <div style="font-size: 14px; color: #666; margin-top: 10px;">
+              Generated on ${new Date().toLocaleDateString()} | MetisAI Platform
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Project Overview</div>
+            <p><strong>Project Name:</strong> ${project.name}</p>
+            <p><strong>Description:</strong> ${project.description}</p>
+            <p><strong>Type:</strong> ${project.type}</p>
+            <p><strong>Status:</strong> ${project.status}</p>
+            <p><strong>Created:</strong> ${project.createdDate}</p>
+            <p><strong>Last Modified:</strong> ${project.lastModified}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Analysis Summary</div>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-value">${project.lcaData.inputs.filter(i => i.completed).length}</div>
+                <div class="stat-label">Inputs Completed</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${project.lcaData.inputs.filter(i => i.skipped).length}</div>
+                <div class="stat-label">Inputs Skipped</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${project.lcaData.graphNodes?.length || 0}</div>
+                <div class="stat-label">Process Nodes</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${project.lcaData.analysisComplete ? '100%' : Math.round((project.lcaData.inputs.filter(i => i.completed).length / project.lcaData.inputs.length) * 100) + '%'}</div>
+                <div class="stat-label">Completion Rate</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Input Details</div>
+            <table class="input-table">
+              <thead>
+                <tr>
+                  <th>Step</th>
+                  <th>Process</th>
+                  <th>Status</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${project.lcaData.inputs.map((input, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${input.label}</td>
+                    <td class="${input.completed ? 'status-completed' : input.skipped ? 'status-skipped' : 'status-empty'}">
+                      ${input.completed ? 'Completed' : input.skipped ? 'Skipped' : 'Empty'}
+                    </td>
+                    <td>${input.value || 'N/A'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="footer">
+            <p>This report was generated by MetisAI - Advanced Life Cycle Assessment Platform</p>
+            <p>For more information, visit our platform or contact support.</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Create a blob and download
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LCA_Report_${project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const generateExcelReport = (project: Project) => {
+    if (!project.lcaData) return;
+
+    // Create CSV content
+    const csvContent = [
+      ['LCA Report - ' + project.name],
+      ['Generated on', new Date().toLocaleDateString()],
+      [''],
+      ['Project Information'],
+      ['Field', 'Value'],
+      ['Project Name', project.name],
+      ['Description', project.description],
+      ['Type', project.type],
+      ['Status', project.status],
+      ['Created', project.createdDate],
+      ['Last Modified', project.lastModified],
+      [''],
+      ['Analysis Summary'],
+      ['Metric', 'Value'],
+      ['Inputs Completed', project.lcaData.inputs.filter(i => i.completed).length],
+      ['Inputs Skipped', project.lcaData.inputs.filter(i => i.skipped).length],
+      ['Process Nodes', project.lcaData.graphNodes?.length || 0],
+      ['Completion Rate', (project.lcaData.analysisComplete ? '100%' : Math.round((project.lcaData.inputs.filter(i => i.completed).length / project.lcaData.inputs.length) * 100) + '%')],
+      [''],
+      ['Input Details'],
+      ['Step', 'Process', 'Status', 'Value'],
+      ...project.lcaData.inputs.map((input, index) => [
+        index + 1,
+        input.label,
+        input.completed ? 'Completed' : input.skipped ? 'Skipped' : 'Empty',
+        input.value || 'N/A'
+      ])
+    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LCA_Data_${project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Fill missing values with AI simulation
@@ -3045,6 +3266,7 @@ export default function DemoPage() {
                     initialNodes={graphNodes}
                     onNodesChange={handleGraphNodesChange}
                     onNodeInfoUpdate={setCurrentNodeInfo}
+                    isLoadingSavedProject={isLoadingSavedProject}
                   />
                 </div>
 
@@ -3216,15 +3438,233 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center py-16"
+              className="p-6"
             >
-              <FileText className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">Reports & Exports</h1>
-              <p className="text-gray-400 mb-8">Generate comprehensive reports and export your analysis</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">Advanced reporting system in development</p>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2">Reports & Exports</h1>
+                <p className="text-gray-400">Generate comprehensive reports and export your LCA analysis data</p>
               </div>
+
+              {/* Report Types */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-500/20 rounded-xl p-6">
+                  <div className="flex items-center mb-4">
+                    <FileText className="w-8 h-8 text-blue-400 mr-3" />
+                    <h3 className="text-xl font-semibold text-white">PDF Reports</h3>
+                  </div>
+                  <p className="text-gray-300 mb-4 text-sm">
+                    Generate comprehensive PDF reports with project overview, analysis summary, and detailed input data.
+                  </p>
+                  <div className="flex items-center space-x-2 text-sm text-blue-300">
+                    <Award className="w-4 h-4" />
+                    <span>Professional Format</span>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/20 rounded-xl p-6">
+                  <div className="flex items-center mb-4">
+                    <BarChart3 className="w-8 h-8 text-green-400 mr-3" />
+                    <h3 className="text-xl font-semibold text-white">Excel Data</h3>
+                  </div>
+                  <p className="text-gray-300 mb-4 text-sm">
+                    Export raw data to CSV/Excel format for further analysis, custom reporting, and data processing.
+                  </p>
+                  <div className="flex items-center space-x-2 text-sm text-green-300">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Data Analysis</span>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-500/20 rounded-xl p-6">
+                  <div className="flex items-center mb-4">
+                    <PieChart className="w-8 h-8 text-purple-400 mr-3" />
+                    <h3 className="text-xl font-semibold text-white">Summary Dashboards</h3>
+                  </div>
+                  <p className="text-gray-300 mb-4 text-sm">
+                    Quick overview reports with key metrics, completion rates, and visual summaries.
+                  </p>
+                  <div className="flex items-center space-x-2 text-sm text-purple-300">
+                    <Target className="w-4 h-4" />
+                    <span>Quick Insights</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project Selection */}
+              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6 mb-8">
+                <h2 className="text-xl font-semibold text-white mb-4">Select Project for Report Generation</h2>
+                
+                {projects.filter(p => p.lcaData).length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-400 mb-2">No Completed Projects</h3>
+                    <p className="text-gray-500 mb-6">Complete at least one LCA analysis to generate reports</p>
+                    <button
+                      onClick={() => setActiveTab('modeler')}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300"
+                    >
+                      Start New Analysis
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {projects.filter(p => p.lcaData).map(project => (
+                      <div
+                        key={project.id}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all duration-300 ${
+                          selectedReportProject?.id === project.id
+                            ? 'border-blue-500 bg-blue-900/20'
+                            : 'border-gray-600 bg-gray-800/50 hover:border-gray-500'
+                        }`}
+                        onClick={() => setSelectedReportProject(project)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-white text-sm">{project.name}</h3>
+                          <span className={`px-2 py-1 rounded text-xs ${getStatusColor(project.status)}`}>
+                            {project.status}
+                          </span>
+                        </div>
+                        <p className="text-gray-400 text-xs mb-3 line-clamp-2">{project.description}</p>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">
+                            {project.lcaData?.inputs.filter(i => i.completed).length}/{project.lcaData?.inputs.length} completed
+                          </span>
+                          <span className="text-gray-500">{project.lastModified}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Report Generation Actions */}
+              {selectedReportProject && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-xl font-semibold text-white">Generate Report</h2>
+                      <p className="text-gray-400 text-sm">Selected: {selectedReportProject.name}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedReportProject(null)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* PDF Report */}
+                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
+                      <div className="flex items-center mb-4">
+                        <FileText className="w-6 h-6 text-blue-400 mr-3" />
+                        <h3 className="text-lg font-semibold text-white">PDF Report</h3>
+                      </div>
+                      <p className="text-gray-300 text-sm mb-4">
+                        Professional report with project overview, analysis summary, and complete input data.
+                      </p>
+                      <div className="space-y-2 mb-4 text-sm text-gray-400">
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Project overview & metadata</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Analysis summary & statistics</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Detailed input breakdown</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Professional formatting</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => generatePDFReport(selectedReportProject)}
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download PDF Report</span>
+                      </button>
+                    </div>
+
+                    {/* Excel Export */}
+                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-6">
+                      <div className="flex items-center mb-4">
+                        <BarChart3 className="w-6 h-6 text-green-400 mr-3" />
+                        <h3 className="text-lg font-semibold text-white">Excel Export</h3>
+                      </div>
+                      <p className="text-gray-300 text-sm mb-4">
+                        Raw data export in CSV format for custom analysis and further processing.
+                      </p>
+                      <div className="space-y-2 mb-4 text-sm text-gray-400">
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Project metadata & info</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Complete input data</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>Analysis metrics</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+                          <span>CSV format compatibility</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => generateExcelReport(selectedReportProject)}
+                        className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download CSV Data</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="mt-6 pt-6 border-t border-gray-700/30">
+                    <h4 className="text-sm font-semibold text-gray-300 mb-3">Report Preview</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-blue-400">
+                          {selectedReportProject.lcaData?.inputs.filter(i => i.completed).length}
+                        </div>
+                        <div className="text-xs text-gray-400">Completed Inputs</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-yellow-400">
+                          {selectedReportProject.lcaData?.inputs.filter(i => i.skipped).length}
+                        </div>
+                        <div className="text-xs text-gray-400">Skipped Inputs</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-400">
+                          {selectedReportProject.lcaData?.graphNodes?.length || 0}
+                        </div>
+                        <div className="text-xs text-gray-400">Process Nodes</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-purple-400">
+                          {selectedReportProject.lcaData?.analysisComplete ? '100%' : 
+                           Math.round((selectedReportProject.lcaData?.inputs.filter(i => i.completed).length || 0) / 
+                                     (selectedReportProject.lcaData?.inputs.length || 1) * 100) + '%'}
+                        </div>
+                        <div className="text-xs text-gray-400">Completion</div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
 
@@ -3233,14 +3673,212 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center py-16"
+              className="p-6"
             >
-              <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">Settings</h1>
-              <p className="text-gray-400 mb-8">Configure your MetisAI preferences</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">Settings panel under construction</p>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
+                <p className="text-gray-400">Configure your MetisAI platform preferences and account settings</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Settings Navigation */}
+                <div className="lg:col-span-1">
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-4">
+                    <h2 className="text-lg font-semibold text-white mb-4">Settings Categories</h2>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'appearance', icon: Palette, label: 'Appearance', desc: 'Theme and display' },
+                        { id: 'notifications', icon: Bell, label: 'Notifications', desc: 'Email and alerts' },
+                        { id: 'privacy', icon: Shield, label: 'Privacy & Security', desc: 'Data and security' },
+                        { id: 'preferences', icon: Settings, label: 'Preferences', desc: 'Default settings' }
+                      ].map(category => (
+                        <div key={category.id} className="p-3 rounded-lg border border-gray-600/30 bg-gray-800/30">
+                          <div className="flex items-center">
+                            <category.icon className="w-5 h-5 text-blue-400 mr-3" />
+                            <div>
+                              <div className="text-sm font-medium text-white">{category.label}</div>
+                              <div className="text-xs text-gray-400">{category.desc}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Settings Content */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Appearance Settings */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center mb-4">
+                      <Palette className="w-6 h-6 text-blue-400 mr-3" />
+                      <h3 className="text-xl font-semibold text-white">Appearance</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Theme</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {['dark', 'light', 'auto'].map(theme => (
+                            <button
+                              key={theme}
+                              onClick={() => setSettings(prev => ({ ...prev, theme }))}
+                              className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                                settings.theme === theme
+                                  ? 'border-blue-500 bg-blue-900/30 text-blue-300'
+                                  : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center space-x-2">
+                                {theme === 'dark' && <Moon className="w-4 h-4" />}
+                                {theme === 'light' && <Sun className="w-4 h-4" />}
+                                {theme === 'auto' && <Monitor className="w-4 h-4" />}
+                                <span className="capitalize">{theme}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Font Size</label>
+                        <select
+                          value={settings.display.fontSize}
+                          onChange={(e) => setSettings(prev => ({
+                            ...prev,
+                            display: { ...prev.display, fontSize: e.target.value }
+                          }))}
+                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="small">Small</option>
+                          <option value="medium">Medium</option>
+                          <option value="large">Large</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-300">Auto-focus on new nodes</div>
+                          <div className="text-xs text-gray-500">Automatically focus when new nodes are added</div>
+                        </div>
+                        <button
+                          onClick={() => setSettings(prev => ({
+                            ...prev,
+                            display: { ...prev.display, autoFocus: !prev.display.autoFocus }
+                          }))}
+                          className={`relative w-11 h-6 rounded-full transition-colors ${
+                            settings.display.autoFocus ? 'bg-blue-600' : 'bg-gray-600'
+                          }`}
+                        >
+                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                            settings.display.autoFocus ? 'translate-x-5' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-300">Enable animations</div>
+                          <div className="text-xs text-gray-500">Smooth transitions and effects</div>
+                        </div>
+                        <button
+                          onClick={() => setSettings(prev => ({
+                            ...prev,
+                            display: { ...prev.display, animations: !prev.display.animations }
+                          }))}
+                          className={`relative w-11 h-6 rounded-full transition-colors ${
+                            settings.display.animations ? 'bg-blue-600' : 'bg-gray-600'
+                          }`}
+                        >
+                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                            settings.display.animations ? 'translate-x-5' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notification Settings */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center mb-4">
+                      <Bell className="w-6 h-6 text-yellow-400 mr-3" />
+                      <h3 className="text-xl font-semibold text-white">Notifications</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {[
+                        { key: 'email', label: 'Email notifications', desc: 'Receive updates via email' },
+                        { key: 'push', label: 'Push notifications', desc: 'Browser notifications' },
+                        { key: 'reports', label: 'Report generation', desc: 'Notify when reports are ready' },
+                        { key: 'updates', label: 'Platform updates', desc: 'New features and announcements' }
+                      ].map(notif => (
+                        <div key={notif.key} className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">{notif.label}</div>
+                            <div className="text-xs text-gray-500">{notif.desc}</div>
+                          </div>
+                          <button
+                            onClick={() => setSettings(prev => ({
+                              ...prev,
+                              notifications: { 
+                                ...prev.notifications, 
+                                [notif.key]: !prev.notifications[notif.key as keyof typeof prev.notifications]
+                              }
+                            }))}
+                            className={`relative w-11 h-6 rounded-full transition-colors ${
+                              settings.notifications[notif.key as keyof typeof settings.notifications] ? 'bg-blue-600' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.notifications[notif.key as keyof typeof settings.notifications] ? 'translate-x-5' : 'translate-x-0'
+                            }`} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Privacy Settings */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center mb-4">
+                      <Shield className="w-6 h-6 text-green-400 mr-3" />
+                      <h3 className="text-xl font-semibold text-white">Privacy & Security</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {[
+                        { key: 'analytics', label: 'Usage analytics', desc: 'Help improve the platform' },
+                        { key: 'crashReports', label: 'Crash reports', desc: 'Automatic error reporting' },
+                        { key: 'shareData', label: 'Share anonymized data', desc: 'For research purposes' }
+                      ].map(privacy => (
+                        <div key={privacy.key} className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">{privacy.label}</div>
+                            <div className="text-xs text-gray-500">{privacy.desc}</div>
+                          </div>
+                          <button
+                            onClick={() => setSettings(prev => ({
+                              ...prev,
+                              privacy: { 
+                                ...prev.privacy, 
+                                [privacy.key]: !prev.privacy[privacy.key as keyof typeof prev.privacy]
+                              }
+                            }))}
+                            className={`relative w-11 h-6 rounded-full transition-colors ${
+                              settings.privacy[privacy.key as keyof typeof settings.privacy] ? 'bg-blue-600' : 'bg-gray-600'
+                            }`}
+                          >
+                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              settings.privacy[privacy.key as keyof typeof settings.privacy] ? 'translate-x-5' : 'translate-x-0'
+                            }`} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Save Settings */}
+                  <div className="flex justify-end">
+                    <button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300 flex items-center space-x-2">
+                      <Save className="w-4 h-4" />
+                      <span>Save Settings</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -3250,19 +3888,509 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center py-16"
+              className="p-6"
             >
-              <User className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">User Profile</h1>
-              <p className="text-gray-400 mb-8">Manage your account and preferences</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">User management system being built</p>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2">User Profile</h1>
+                <p className="text-gray-400">Manage your account information and preferences</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Profile Overview */}
+                <div className="lg:col-span-1">
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="text-center mb-6">
+                      <div className="relative inline-block mb-4">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                          {userProfile.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <button className="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1 transition-colors">
+                          <Camera className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <h3 className="text-xl font-semibold text-white">{userProfile.name}</h3>
+                      <p className="text-gray-400">{userProfile.role}</p>
+                      <p className="text-sm text-gray-500">{userProfile.organization}</p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center text-sm">
+                        <Mail className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-300">{userProfile.email}</span>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <Globe className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-300">{userProfile.preferences.timezone}</span>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <Briefcase className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-gray-300">{userProfile.preferences.defaultProjectType}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsEditingProfile(!isEditingProfile)}
+                      className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span>{isEditingProfile ? 'Cancel Edit' : 'Edit Profile'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Profile Details */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Personal Information */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center">
+                        <User className="w-6 h-6 text-blue-400 mr-3" />
+                        <h3 className="text-xl font-semibold text-white">Personal Information</h3>
+                      </div>
+                      {!isEditingProfile && (
+                        <button
+                          onClick={() => setIsEditingProfile(true)}
+                          className="text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="text"
+                            value={userProfile.name}
+                            onChange={(e) => setUserProfile(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          />
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.name}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="email"
+                            value={userProfile.email}
+                            onChange={(e) => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          />
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.email}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Organization</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="text"
+                            value={userProfile.organization}
+                            onChange={(e) => setUserProfile(prev => ({ ...prev, organization: e.target.value }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          />
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.organization}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                        {isEditingProfile ? (
+                          <select
+                            value={userProfile.role}
+                            onChange={(e) => setUserProfile(prev => ({ ...prev, role: e.target.value }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="Environmental Analyst">Environmental Analyst</option>
+                            <option value="Sustainability Manager">Sustainability Manager</option>
+                            <option value="Research Scientist">Research Scientist</option>
+                            <option value="Consultant">Consultant</option>
+                            <option value="Student">Student</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.role}</div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {isEditingProfile && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Bio</label>
+                        <textarea
+                          value={userProfile.bio}
+                          onChange={(e) => setUserProfile(prev => ({ ...prev, bio: e.target.value }))}
+                          rows={3}
+                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          placeholder="Tell us about yourself..."
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preferences */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center mb-4">
+                      <Settings className="w-6 h-6 text-green-400 mr-3" />
+                      <h3 className="text-xl font-semibold text-white">Preferences</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Default Project Type</label>
+                        {isEditingProfile ? (
+                          <select
+                            value={userProfile.preferences.defaultProjectType}
+                            onChange={(e) => setUserProfile(prev => ({
+                              ...prev,
+                              preferences: { ...prev.preferences, defaultProjectType: e.target.value }
+                            }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Energy">Energy</option>
+                            <option value="Transportation">Transportation</option>
+                            <option value="Agriculture">Agriculture</option>
+                            <option value="Construction">Construction</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.defaultProjectType}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Timezone</label>
+                        {isEditingProfile ? (
+                          <select
+                            value={userProfile.preferences.timezone}
+                            onChange={(e) => setUserProfile(prev => ({
+                              ...prev,
+                              preferences: { ...prev.preferences, timezone: e.target.value }
+                            }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="UTC">UTC</option>
+                            <option value="EST">EST</option>
+                            <option value="PST">PST</option>
+                            <option value="IST">IST</option>
+                            <option value="CET">CET</option>
+                            <option value="JST">JST</option>
+                          </select>
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.timezone}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Date Format</label>
+                        {isEditingProfile ? (
+                          <select
+                            value={userProfile.preferences.dateFormat}
+                            onChange={(e) => setUserProfile(prev => ({
+                              ...prev,
+                              preferences: { ...prev.preferences, dateFormat: e.target.value }
+                            }))}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                          </select>
+                        ) : (
+                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.dateFormat}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security */}
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+                    <div className="flex items-center mb-4">
+                      <Lock className="w-6 h-6 text-red-400 mr-3" />
+                      <h3 className="text-xl font-semibold text-white">Security</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <button className="w-full text-left bg-gray-800/50 hover:bg-gray-800/70 border border-gray-600/50 rounded-lg px-4 py-3 transition-colors flex items-center justify-between">
+                        <div className="flex items-center">
+                          <Key className="w-5 h-5 text-yellow-400 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">Change Password</div>
+                            <div className="text-xs text-gray-500">Update your account password</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </button>
+                      
+                      <button className="w-full text-left bg-gray-800/50 hover:bg-gray-800/70 border border-gray-600/50 rounded-lg px-4 py-3 transition-colors flex items-center justify-between">
+                        <div className="flex items-center">
+                          <Shield className="w-5 h-5 text-green-400 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">Two-Factor Authentication</div>
+                            <div className="text-xs text-gray-500">Add an extra layer of security</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Save Profile */}
+                  {isEditingProfile && (
+                    <div className="flex justify-end space-x-4">
+                      <button
+                        onClick={() => setIsEditingProfile(false)}
+                        className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => setIsEditingProfile(false)}
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300 flex items-center space-x-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Save Profile</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
         </div>
       </div>
+
+      {/* Analysis Page */}
+      {showAnalysisPage && viewingProjectAnalysis && viewingProjectAnalysis.lcaData && (
+        <div className="fixed inset-0 bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+            {/* Header with Back Button */}
+            <div className="bg-black/50 backdrop-blur-sm border-b border-gray-700/30 sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16">
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => {
+                        setShowAnalysisPage(false);
+                        setViewingProjectAnalysis(null);
+                      }}
+                      className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                      <span>Back to Projects</span>
+                    </button>
+                    <div className="h-6 w-px bg-gray-600"></div>
+                    <div>
+                      <h1 className="text-xl font-semibold text-white">
+                        {viewingProjectAnalysis.name}
+                      </h1>
+                      <p className="text-sm text-gray-400">Analysis Report</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => {
+                        continueProject(viewingProjectAnalysis);
+                        setShowAnalysisPage(false);
+                        setViewingProjectAnalysis(null);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-medium rounded-lg transition-all duration-300 flex items-center space-x-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span>Edit Project</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {/* Project Info - Compact */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-white mb-1">{viewingProjectAnalysis.name}</h2>
+                <p className="text-gray-400 mb-3 text-sm">{viewingProjectAnalysis.description}</p>
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(viewingProjectAnalysis.status)}`}>
+                    {viewingProjectAnalysis.status}
+                  </span>
+                  <span className={`px-2 py-1 rounded-full text-xs ${getTypeColor(viewingProjectAnalysis.type)}`}>
+                    {viewingProjectAnalysis.type}
+                  </span>
+                  <span className="px-2 py-1 rounded-full text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-500/30">
+                    LCA Analysis Complete
+                  </span>
+                </div>
+              </div>
+
+              {/* Stats Overview - Compact */}
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-500/20 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-blue-400 mb-1">
+                    {viewingProjectAnalysis.lcaData.inputs.filter(i => i.completed).length}
+                  </div>
+                  <div className="text-xs text-blue-300">Completed</div>
+                </div>
+                <div className="bg-gradient-to-br from-yellow-900/30 to-yellow-800/20 border border-yellow-500/20 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-yellow-400 mb-1">
+                    {viewingProjectAnalysis.lcaData.inputs.filter(i => i.skipped).length}
+                  </div>
+                  <div className="text-xs text-yellow-300">Skipped</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/20 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-green-400 mb-1">
+                    {viewingProjectAnalysis.lcaData.graphNodes?.length || 0}
+                  </div>
+                  <div className="text-xs text-green-300">Nodes</div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-500/20 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-purple-400 mb-1">
+                    {viewingProjectAnalysis.lcaData.analysisComplete ? '100%' : 
+                     Math.round((viewingProjectAnalysis.lcaData.inputs.filter(i => i.completed).length / 
+                               viewingProjectAnalysis.lcaData.inputs.length) * 100) + '%'}
+                  </div>
+                  <div className="text-xs text-purple-300">Complete</div>
+                </div>
+              </div>
+
+              {/* Main Analysis Graph - Extra Large */}
+              <div className="relative h-[calc(100vh-280px)] min-h-[700px]">
+                {/* LCA Graph - Full Width */}
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl">
+                  <div className="flex items-center justify-between p-4 border-b border-gray-700/30">
+                    <h3 className="text-xl font-semibold text-white">Life Cycle Analysis Graph</h3>
+                    <div className="flex items-center space-x-2 text-sm text-gray-400">
+                      <BarChart3 className="w-4 h-4" />
+                      <span>Click nodes for details</span>
+                    </div>
+                  </div>
+                  <div className="relative h-[calc(100%-60px)] bg-black/50 overflow-hidden">
+                    <ObsidianGraph 
+                      inputs={viewingProjectAnalysis.lcaData.inputs} 
+                      currentStep={viewingProjectAnalysis.lcaData.inputs.length - 1}
+                      selectedNode={analysisSelectedNode}
+                      setSelectedNode={setAnalysisSelectedNode}
+                      autoFocusOnMount={true}
+                      analysisComplete={true}
+                      initialNodes={viewingProjectAnalysis.lcaData.graphNodes}
+                      onNodesChange={() => {}}
+                      onNodeInfoUpdate={setAnalysisCurrentNodeInfo}
+                      isLoadingSavedProject={false}
+                    />
+                  </div>
+                </div>
+
+                {/* Node Information Panel (Sliding from Right) */}
+                <div className={`absolute top-0 right-0 h-full transition-all duration-300 ease-in-out bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-sm border-l border-gray-700/30 overflow-hidden ${
+                  analysisSelectedNode ? 'w-96 opacity-100' : 'w-0 opacity-0'
+                }`}>
+                  {analysisSelectedNode && analysisCurrentNodeInfo && (
+                    <div className="p-6 h-full overflow-y-auto">
+                      {/* Close Button */}
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-white">Process Details</h3>
+                        <button
+                          onClick={() => setAnalysisSelectedNode(null)}
+                          className="p-2 hover:bg-gray-700/50 rounded-lg transition-colors"
+                        >
+                          <X className="w-5 h-5 text-gray-400 hover:text-white" />
+                        </button>
+                      </div>
+
+                      {/* Node Title */}
+                      <div className="mb-6">
+                        <h4 className="text-xl font-bold text-white mb-2">
+                          {analysisSelectedNode.label}
+                        </h4>
+                        <p className="text-gray-400 text-sm leading-relaxed">
+                          {analysisCurrentNodeInfo.description}
+                        </p>
+                      </div>
+
+                      {/* Resources Section */}
+                      {analysisCurrentNodeInfo.resourcesDepletedOrUsed && analysisCurrentNodeInfo.resourcesDepletedOrUsed.length > 0 && (
+                        <div className="mb-6">
+                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
+                            <Circle className="w-4 h-4 mr-2 text-blue-400" />
+                            Resources
+                          </h5>
+                          <div className="space-y-3">
+                            {analysisCurrentNodeInfo.resourcesDepletedOrUsed.map((resource, idx) => (
+                              <div key={idx} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium text-gray-300 flex items-center">
+                                    <span className="mr-2">{resource.icon}</span>
+                                    {resource.resource}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    resource.impact === 'high' ? 'bg-red-900/30 text-red-400' :
+                                    resource.impact === 'medium' ? 'bg-yellow-900/30 text-yellow-400' :
+                                    'bg-green-900/30 text-green-400'
+                                  }`}>
+                                    {resource.impact}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-400">{resource.amount}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Environmental Impact */}
+                      {analysisCurrentNodeInfo.environmentalImpact && analysisCurrentNodeInfo.environmentalImpact.length > 0 && (
+                        <div className="mb-6">
+                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
+                            <Activity className="w-4 h-4 mr-2 text-green-400" />
+                            Environmental Impact
+                          </h5>
+                          <div className="space-y-3">
+                            {analysisCurrentNodeInfo.environmentalImpact.map((impact, idx) => (
+                              <div key={idx} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium text-gray-300">{impact.category}</span>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    impact.level === 'high' ? 'bg-red-900/30 text-red-400' :
+                                    impact.level === 'medium' ? 'bg-yellow-900/30 text-yellow-400' :
+                                    'bg-green-900/30 text-green-400'
+                                  }`}>
+                                    {impact.level}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-400">{impact.description}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Recommendations */}
+                      {analysisCurrentNodeInfo.recommendations && analysisCurrentNodeInfo.recommendations.length > 0 && (
+                        <div>
+                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
+                            <Info className="w-4 h-4 mr-2 text-purple-400" />
+                            Recommendations
+                          </h5>
+                          <div className="space-y-2">
+                            {analysisCurrentNodeInfo.recommendations.map((rec, idx) => (
+                              <div key={idx} className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3">
+                                <div className="text-sm text-purple-200">{rec}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Project Modal */}
       {showCreateModal && (
