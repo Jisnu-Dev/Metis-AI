@@ -417,29 +417,49 @@ function LifeCycleModeler({
   );
 }
 
+// Define types for node information
+interface NodeResource {
+  resource: string;
+  amount: string;
+  impact: 'high' | 'medium' | 'low';
+  icon: string;
+}
+
+interface NodeImpact {
+  category: string;
+  level: 'high' | 'medium' | 'low';
+  description: string;
+}
+
+interface NodeInfo {
+  title: string;
+  description: string;
+  resourcesDepletedOrUsed: NodeResource[];
+  environmentalImpact: NodeImpact[];
+  recommendations: string[];
+}
+
 // Enhanced Obsidian-style Graph Component with Pan & Zoom
 function ObsidianGraph({ 
   inputs, 
   currentStep, 
   selectedNode, 
   setSelectedNode,
-  getCurrentValue,
-  getNodeInfo,
   autoFocusOnMount = false,
   analysisComplete = false,
   initialNodes,
-  onNodesChange
+  onNodesChange,
+  onNodeInfoUpdate
 }: { 
   inputs: LCAInput[], 
   currentStep: number,
   selectedNode: GraphNode | null,
   setSelectedNode: (node: GraphNode | null) => void,
-  getCurrentValue: (inputId: string) => string,
-  getNodeInfo: (node: GraphNode) => any,
   autoFocusOnMount?: boolean,
   analysisComplete?: boolean,
   initialNodes?: GraphNode[],
-  onNodesChange?: (nodes: GraphNode[]) => void
+  onNodesChange?: (nodes: GraphNode[]) => void,
+  onNodeInfoUpdate?: (nodeInfo: NodeInfo | null) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1.2 });
@@ -449,6 +469,191 @@ function ObsidianGraph({
   const [touchDistance, setTouchDistance] = useState(0);
   const [userPreferredZoom, setUserPreferredZoom] = useState(1.2);
   const [momentum, setMomentum] = useState({ x: 0, y: 0 });
+  
+  // Helper function to get current input value
+  const getCurrentValue = (inputId: string) => {
+    const input = inputs.find(inp => inp.id === inputId);
+    return input?.value || '';
+  };
+
+  // Get detailed node information including resource depletion
+  const getNodeInfo = (node: GraphNode): NodeInfo => {
+    const nodeInfo: NodeInfo = {
+      title: node.label,
+      description: '',
+      resourcesDepletedOrUsed: [],
+      environmentalImpact: [],
+      recommendations: []
+    };
+
+    switch (node.id) {
+      case 'product':
+        nodeInfo.description = 'The product definition stage sets the foundation for your entire LCA. This determines the functional unit and system boundaries.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Administrative Energy', amount: 'Minimal', impact: 'low', icon: '⚡' },
+          { resource: 'Digital Storage', amount: '~1 MB', impact: 'low', icon: '💾' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Footprint', level: 'low', description: 'Minimal emissions from digital activities' }
+        ];
+        nodeInfo.recommendations = ['Define clear functional units', 'Set appropriate system boundaries'];
+        break;
+
+      case 'location':
+        nodeInfo.description = 'Geographic location significantly affects energy grid composition, transportation distances, and regulatory frameworks.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Land Use', amount: 'Varies by facility size', impact: 'medium', icon: '🏭' },
+          { resource: 'Local Infrastructure', amount: 'Shared usage', impact: 'low', icon: '🛣️' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Intensity', level: 'high', description: 'Varies by local energy grid (coal vs renewable)' },
+          { category: 'Transportation Emissions', level: 'medium', description: 'Distance to suppliers and markets' }
+        ];
+        nodeInfo.recommendations = ['Choose locations with clean energy grids', 'Minimize transportation distances'];
+        break;
+
+      case 'energy':
+        nodeInfo.description = 'Energy source selection is critical for environmental impact. Renewable sources dramatically reduce lifecycle emissions.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Fossil Fuels', amount: 'High (if non-renewable)', impact: 'high', icon: '🛢️' },
+          { resource: 'Renewable Resources', amount: 'Sustainable (if renewable)', impact: 'low', icon: '🌱' },
+          { resource: 'Grid Infrastructure', amount: 'Shared usage', impact: 'medium', icon: '🔌' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'GHG Emissions', level: 'high', description: 'Major contributor to carbon footprint' },
+          { category: 'Air Quality', level: 'high', description: 'Fossil fuels create pollutants' },
+          { category: 'Resource Depletion', level: 'high', description: 'Non-renewable energy sources' }
+        ];
+        nodeInfo.recommendations = ['Prioritize renewable energy sources', 'Implement energy efficiency measures', 'Consider on-site solar/wind'];
+        break;
+
+      case 'electricity':
+        nodeInfo.description = 'Electricity consumption directly correlates with environmental impact based on the local energy grid composition.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Coal/Gas', amount: `${getCurrentValue('electricity') || '0'} kWh × grid factor`, impact: 'high', icon: '⚡' },
+          { resource: 'Water (cooling)', amount: '~2-3L per kWh', impact: 'medium', icon: '💧' },
+          { resource: 'Grid Capacity', amount: 'Shared infrastructure', impact: 'low', icon: '🔌' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Emissions', level: 'high', description: `${getCurrentValue('electricity') || '0'} kWh generates significant CO₂` },
+          { category: 'Water Consumption', level: 'medium', description: 'Thermoelectric power plants require cooling water' }
+        ];
+        nodeInfo.recommendations = ['Reduce electricity consumption', 'Use energy-efficient equipment', 'Source from renewable grids'];
+        break;
+
+      case 'scrapRate':
+        nodeInfo.description = 'Material waste during production represents lost resources and additional environmental burden.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Raw Materials', amount: `${getCurrentValue('scrapRate') || '0'}% waste`, impact: 'medium', icon: '🔨' },
+          { resource: 'Processing Energy', amount: 'Wasted on scrapped material', impact: 'medium', icon: '⚡' },
+          { resource: 'Landfill Space', amount: 'If not recycled', impact: 'medium', icon: '🗑️' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Resource Efficiency', level: 'medium', description: 'Higher scrap rates mean more resource consumption' },
+          { category: 'Waste Generation', level: 'medium', description: 'Increases overall material throughput' }
+        ];
+        nodeInfo.recommendations = ['Optimize manufacturing processes', 'Implement quality control', 'Design for manufacturability'];
+        break;
+
+      case 'scrapFate':
+        nodeInfo.description = 'The destination of scrap material significantly affects the overall environmental impact of the production process.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Recycling Energy', amount: 'If recycled', impact: 'low', icon: '♻️' },
+          { resource: 'Landfill Space', amount: 'If disposed', impact: 'high', icon: '🗑️' },
+          { resource: 'Transportation Fuel', amount: 'To recycling/disposal', impact: 'low', icon: '🚛' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Circular Economy', level: 'high', description: 'Recycling reduces virgin material demand' },
+          { category: 'Waste Impact', level: 'high', description: 'Landfilling creates long-term environmental burden' }
+        ];
+        nodeInfo.recommendations = ['Maximize recycling rates', 'Partner with certified recyclers', 'Design for recyclability'];
+        break;
+
+      case 'water':
+        nodeInfo.description = 'Water consumption affects local water resources and requires treatment, impacting aquatic ecosystems.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Freshwater', amount: `${getCurrentValue('water') || '0'} L per unit`, impact: 'high', icon: '💧' },
+          { resource: 'Treatment Chemicals', amount: 'For water purification', impact: 'medium', icon: '🧪' },
+          { resource: 'Energy (pumping/treatment)', amount: '~3-4 kWh per 1000L', impact: 'medium', icon: '⚡' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Water Scarcity', level: 'high', description: 'Depletes local freshwater resources' },
+          { category: 'Aquatic Ecosystems', level: 'medium', description: 'Affects water availability for ecosystems' },
+          { category: 'Treatment Impact', level: 'medium', description: 'Wastewater requires energy-intensive treatment' }
+        ];
+        nodeInfo.recommendations = ['Implement water recycling', 'Use water-efficient processes', 'Consider rainwater harvesting'];
+        break;
+
+      case 'materialSource':
+        nodeInfo.description = 'Raw material sourcing affects transportation emissions, local ecosystems, and supply chain sustainability.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Virgin Materials', amount: 'Primary resource extraction', impact: 'high', icon: '⛏️' },
+          { resource: 'Land (mining/forestry)', amount: 'Ecosystem disruption', impact: 'high', icon: '🌲' },
+          { resource: 'Water (extraction)', amount: 'Mining and processing', impact: 'medium', icon: '💧' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Biodiversity Loss', level: 'high', description: 'Habitat destruction from resource extraction' },
+          { category: 'Soil Degradation', level: 'high', description: 'Mining and logging affect soil quality' },
+          { category: 'Transportation Emissions', level: 'medium', description: 'Distance from source to facility' }
+        ];
+        nodeInfo.recommendations = ['Source from certified sustainable suppliers', 'Minimize transportation distances', 'Use recycled materials when possible'];
+        break;
+
+      case 'transportation':
+        nodeInfo.description = 'Transportation mode significantly affects fuel consumption, emissions, and delivery timeframes.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Fossil Fuels', amount: 'Varies by mode and distance', impact: 'high', icon: '⛽' },
+          { resource: 'Vehicle Infrastructure', amount: 'Shared transportation network', impact: 'medium', icon: '🛣️' },
+          { resource: 'Packaging Materials', amount: 'Protection during transport', impact: 'low', icon: '📦' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'GHG Emissions', level: 'high', description: 'Major source of scope 3 emissions' },
+          { category: 'Air Pollution', level: 'high', description: 'NOx, particulates from combustion' },
+          { category: 'Noise Pollution', level: 'medium', description: 'Traffic noise in urban areas' }
+        ];
+        nodeInfo.recommendations = ['Choose efficient transportation modes', 'Optimize logistics and routing', 'Consider rail/sea over road/air'];
+        break;
+
+      case 'endOfLife':
+        nodeInfo.description = 'End-of-life treatment determines whether materials re-enter the economy or become waste, affecting long-term sustainability.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Recycling Infrastructure', amount: 'If recyclable design', impact: 'low', icon: '♻️' },
+          { resource: 'Landfill Space', amount: 'If not recyclable', impact: 'high', icon: '🗑️' },
+          { resource: 'Incineration Energy', amount: 'Energy recovery possible', impact: 'medium', icon: '🔥' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Circular Economy', level: 'high', description: 'Determines material recovery potential' },
+          { category: 'Long-term Pollution', level: 'high', description: 'Landfilled materials may leach toxins' },
+          { category: 'Resource Recovery', level: 'high', description: 'Recycling reduces need for virgin materials' }
+        ];
+        nodeInfo.recommendations = ['Design for disassembly', 'Use recyclable materials', 'Implement take-back programs'];
+        break;
+
+      default:
+        nodeInfo.description = 'This process step contributes to the overall environmental impact of your product lifecycle.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Various Resources', amount: 'Context dependent', impact: 'medium', icon: '🔄' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Environmental Impact', level: 'medium', description: 'Specific impacts depend on process details' }
+        ];
+        nodeInfo.recommendations = ['Define specific process parameters', 'Quantify resource usage'];
+    }
+
+    return nodeInfo;
+  };
+
+  // Update parent with current node info when selectedNode changes
+  useEffect(() => {
+    if (onNodeInfoUpdate) {
+      if (selectedNode) {
+        onNodeInfoUpdate(getNodeInfo(selectedNode));
+      } else {
+        onNodeInfoUpdate(null);
+      }
+    }
+  }, [selectedNode, onNodeInfoUpdate]);
+
   // Auto-focus state for new nodes (using setter only)
   const [, setAutoFocusEnabled] = useState(true);
   const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
@@ -631,7 +836,7 @@ function ObsidianGraph({
       
       return () => clearTimeout(timer);
     }
-  }, [autoFocusOnMount, resetToOverview]); // Removed nodes.length dependency to prevent conflicts
+  }, [autoFocusOnMount, resetToOverview, nodes.length]);
 
   // Auto-focus to overview when analysis is completed
   useEffect(() => {
@@ -1643,6 +1848,7 @@ export default function DemoPage() {
 
   // Node selection state for the sliding panel
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [currentNodeInfo, setCurrentNodeInfo] = useState<NodeInfo | null>(null);
 
   // Missing values popup state
   const [showMissingValuesPopup, setShowMissingValuesPopup] = useState(false);
@@ -1741,188 +1947,6 @@ export default function DemoPage() {
     // Show success notification
     setProjectSaved(true);
     setTimeout(() => setProjectSaved(false), 3000);
-  };
-
-  // Get detailed node information including resource depletion
-  const getNodeInfo = (node: GraphNode) => {
-    const nodeInfo: {
-      title: string;
-      description: string;
-      resourcesDepletedOrUsed: Array<{
-        resource: string;
-        amount: string;
-        impact: 'high' | 'medium' | 'low';
-        icon: string;
-      }>;
-      environmentalImpact: Array<{
-        category: string;
-        level: 'high' | 'medium' | 'low';
-        description: string;
-      }>;
-      recommendations: string[];
-    } = {
-      title: node.label,
-      description: '',
-      resourcesDepletedOrUsed: [],
-      environmentalImpact: [],
-      recommendations: []
-    };
-
-    switch (node.id) {
-      case 'product':
-        nodeInfo.description = 'The product definition stage sets the foundation for your entire LCA. This determines the functional unit and system boundaries.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Administrative Energy', amount: 'Minimal', impact: 'low', icon: '⚡' },
-          { resource: 'Digital Storage', amount: '~1 MB', impact: 'low', icon: '💾' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Carbon Footprint', level: 'low', description: 'Minimal emissions from digital activities' }
-        ];
-        nodeInfo.recommendations = ['Define clear functional units', 'Set appropriate system boundaries'];
-        break;
-
-      case 'location':
-        nodeInfo.description = 'Geographic location significantly affects energy grid composition, transportation distances, and regulatory frameworks.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Land Use', amount: 'Varies by facility size', impact: 'medium', icon: '🏭' },
-          { resource: 'Local Infrastructure', amount: 'Shared usage', impact: 'low', icon: '🛣️' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Carbon Intensity', level: 'high', description: 'Varies by local energy grid (coal vs renewable)' },
-          { category: 'Transportation Emissions', level: 'medium', description: 'Distance to suppliers and markets' }
-        ];
-        nodeInfo.recommendations = ['Choose locations with clean energy grids', 'Minimize transportation distances'];
-        break;
-
-      case 'energy':
-        nodeInfo.description = 'Energy source selection is critical for environmental impact. Renewable sources dramatically reduce lifecycle emissions.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Fossil Fuels', amount: 'High (if non-renewable)', impact: 'high', icon: '🛢️' },
-          { resource: 'Renewable Resources', amount: 'Sustainable (if renewable)', impact: 'low', icon: '🌱' },
-          { resource: 'Grid Infrastructure', amount: 'Shared usage', impact: 'medium', icon: '🔌' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'GHG Emissions', level: 'high', description: 'Major contributor to carbon footprint' },
-          { category: 'Air Quality', level: 'high', description: 'Fossil fuels create pollutants' },
-          { category: 'Resource Depletion', level: 'high', description: 'Non-renewable energy sources' }
-        ];
-        nodeInfo.recommendations = ['Prioritize renewable energy sources', 'Implement energy efficiency measures', 'Consider on-site solar/wind'];
-        break;
-
-      case 'electricity':
-        nodeInfo.description = 'Electricity consumption directly correlates with environmental impact based on the local energy grid composition.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Coal/Gas', amount: `${getCurrentValue('electricity') || '0'} kWh × grid factor`, impact: 'high', icon: '⚡' },
-          { resource: 'Water (cooling)', amount: '~2-3L per kWh', impact: 'medium', icon: '💧' },
-          { resource: 'Grid Capacity', amount: 'Shared infrastructure', impact: 'low', icon: '🔌' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Carbon Emissions', level: 'high', description: `${getCurrentValue('electricity') || '0'} kWh generates significant CO₂` },
-          { category: 'Water Consumption', level: 'medium', description: 'Thermoelectric power plants require cooling water' }
-        ];
-        nodeInfo.recommendations = ['Reduce electricity consumption', 'Use energy-efficient equipment', 'Source from renewable grids'];
-        break;
-
-      case 'scrapRate':
-        nodeInfo.description = 'Material waste during production represents lost resources and additional environmental burden.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Raw Materials', amount: `${getCurrentValue('scrapRate') || '0'}% waste`, impact: 'medium', icon: '🔨' },
-          { resource: 'Processing Energy', amount: 'Wasted on scrapped material', impact: 'medium', icon: '⚡' },
-          { resource: 'Landfill Space', amount: 'If not recycled', impact: 'medium', icon: '🗑️' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Resource Efficiency', level: 'medium', description: 'Higher scrap rates mean more resource consumption' },
-          { category: 'Waste Generation', level: 'medium', description: 'Increases overall material throughput' }
-        ];
-        nodeInfo.recommendations = ['Optimize manufacturing processes', 'Implement quality control', 'Design for manufacturability'];
-        break;
-
-      case 'scrapFate':
-        nodeInfo.description = 'The destination of scrap material significantly affects the overall environmental impact of the production process.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Recycling Energy', amount: 'If recycled', impact: 'low', icon: '♻️' },
-          { resource: 'Landfill Space', amount: 'If disposed', impact: 'high', icon: '🗑️' },
-          { resource: 'Transportation Fuel', amount: 'To recycling/disposal', impact: 'low', icon: '🚛' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Circular Economy', level: 'high', description: 'Recycling reduces virgin material demand' },
-          { category: 'Waste Impact', level: 'high', description: 'Landfilling creates long-term environmental burden' }
-        ];
-        nodeInfo.recommendations = ['Maximize recycling rates', 'Partner with certified recyclers', 'Design for recyclability'];
-        break;
-
-      case 'water':
-        nodeInfo.description = 'Water consumption affects local water resources and requires treatment, impacting aquatic ecosystems.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Freshwater', amount: `${getCurrentValue('water') || '0'} L per unit`, impact: 'high', icon: '💧' },
-          { resource: 'Treatment Chemicals', amount: 'For water purification', impact: 'medium', icon: '🧪' },
-          { resource: 'Energy (pumping/treatment)', amount: '~3-4 kWh per 1000L', impact: 'medium', icon: '⚡' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Water Scarcity', level: 'high', description: 'Depletes local freshwater resources' },
-          { category: 'Aquatic Ecosystems', level: 'medium', description: 'Affects water availability for ecosystems' },
-          { category: 'Treatment Impact', level: 'medium', description: 'Wastewater requires energy-intensive treatment' }
-        ];
-        nodeInfo.recommendations = ['Implement water recycling', 'Use water-efficient processes', 'Consider rainwater harvesting'];
-        break;
-
-      case 'materialSource':
-        nodeInfo.description = 'Raw material sourcing affects transportation emissions, local ecosystems, and supply chain sustainability.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Virgin Materials', amount: 'Primary resource extraction', impact: 'high', icon: '⛏️' },
-          { resource: 'Land (mining/forestry)', amount: 'Ecosystem disruption', impact: 'high', icon: '🌲' },
-          { resource: 'Water (extraction)', amount: 'Mining and processing', impact: 'medium', icon: '💧' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Biodiversity Loss', level: 'high', description: 'Habitat destruction from resource extraction' },
-          { category: 'Soil Degradation', level: 'high', description: 'Mining and logging affect soil quality' },
-          { category: 'Transportation Emissions', level: 'medium', description: 'Distance from source to facility' }
-        ];
-        nodeInfo.recommendations = ['Source from certified sustainable suppliers', 'Minimize transportation distances', 'Use recycled materials when possible'];
-        break;
-
-      case 'transportation':
-        nodeInfo.description = 'Transportation mode significantly affects fuel consumption, emissions, and delivery timeframes.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Fossil Fuels', amount: 'Varies by mode and distance', impact: 'high', icon: '⛽' },
-          { resource: 'Vehicle Infrastructure', amount: 'Shared transportation network', impact: 'medium', icon: '🛣️' },
-          { resource: 'Packaging Materials', amount: 'Protection during transport', impact: 'low', icon: '📦' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'GHG Emissions', level: 'high', description: 'Major source of scope 3 emissions' },
-          { category: 'Air Pollution', level: 'high', description: 'NOx, particulates from combustion' },
-          { category: 'Noise Pollution', level: 'medium', description: 'Traffic noise in urban areas' }
-        ];
-        nodeInfo.recommendations = ['Choose efficient transportation modes', 'Optimize logistics and routing', 'Consider rail/sea over road/air'];
-        break;
-
-      case 'endOfLife':
-        nodeInfo.description = 'End-of-life treatment determines whether materials re-enter the economy or become waste, affecting long-term sustainability.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Recycling Infrastructure', amount: 'If recyclable design', impact: 'low', icon: '♻️' },
-          { resource: 'Landfill Space', amount: 'If not recyclable', impact: 'high', icon: '🗑️' },
-          { resource: 'Incineration Energy', amount: 'Energy recovery possible', impact: 'medium', icon: '🔥' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Circular Economy', level: 'high', description: 'Determines material recovery potential' },
-          { category: 'Long-term Pollution', level: 'high', description: 'Landfilled materials may leach toxins' },
-          { category: 'Resource Recovery', level: 'high', description: 'Recycling reduces need for virgin materials' }
-        ];
-        nodeInfo.recommendations = ['Design for disassembly', 'Use recyclable materials', 'Implement take-back programs'];
-        break;
-
-      default:
-        nodeInfo.description = 'This process step contributes to the overall environmental impact of your product lifecycle.';
-        nodeInfo.resourcesDepletedOrUsed = [
-          { resource: 'Various Resources', amount: 'Context dependent', impact: 'medium', icon: '🔄' }
-        ];
-        nodeInfo.environmentalImpact = [
-          { category: 'Environmental Impact', level: 'medium', description: 'Specific impacts depend on process details' }
-        ];
-        nodeInfo.recommendations = ['Define specific process parameters', 'Quantify resource usage'];
-    }
-
-    return nodeInfo;
   };
 
   const toggleSidebar = () => {
@@ -2337,7 +2361,7 @@ export default function DemoPage() {
   // Monitor inputs and check if all are filled to prompt save
   useEffect(() => {
     checkAndPromptSave();
-  }, [inputs, analysisComplete, showSaveProjectPrompt]);
+  }, [inputs, analysisComplete, showSaveProjectPrompt, checkAndPromptSave]);
 
   // Auto-save project progress periodically while working
   useEffect(() => {
@@ -2348,7 +2372,7 @@ export default function DemoPage() {
 
       return () => clearInterval(autoSaveInterval);
     }
-  }, [currentProject, activeTab, inputs, graphNodes, analysisComplete]);
+  }, [currentProject, activeTab, inputs, graphNodes, analysisComplete, saveCurrentProjectProgress]);
 
   return (
     <main className="min-h-screen bg-black text-white relative">
@@ -2726,12 +2750,11 @@ export default function DemoPage() {
                     currentStep={currentStep}
                     selectedNode={selectedNode}
                     setSelectedNode={setSelectedNode}
-                    getCurrentValue={getCurrentValue}
-                    getNodeInfo={getNodeInfo}
                     autoFocusOnMount={true}
                     analysisComplete={analysisComplete}
                     initialNodes={graphNodes}
                     onNodesChange={setGraphNodes}
+                    onNodeInfoUpdate={setCurrentNodeInfo}
                   />
                 </div>
 
@@ -2764,117 +2787,114 @@ export default function DemoPage() {
                         transition={{ duration: 0.3 }}
                         className="space-y-6"
                       >
-                        {(() => {
-                          const nodeInfo = getNodeInfo(selectedNode);
-                          return (
-                            <>
-                              {/* Node Header */}
-                              <div className="pb-4 border-b border-gray-700/50">
-                                <h3 className="text-2xl font-bold text-white mb-3">{nodeInfo.title}</h3>
-                                <p className="text-gray-300 text-sm leading-relaxed">{nodeInfo.description}</p>
-                              </div>
+                        {currentNodeInfo && (
+                          <>
+                            {/* Node Header */}
+                            <div className="pb-4 border-b border-gray-700/50">
+                              <h3 className="text-2xl font-bold text-white mb-3">{currentNodeInfo.title}</h3>
+                              <p className="text-gray-300 text-sm leading-relaxed">{currentNodeInfo.description}</p>
+                            </div>
 
-                              {/* Resources Depleted/Used */}
-                              <div className="space-y-4">
-                                <h4 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
-                                  Resources Used/Depleted
-                                </h4>
-                                <div className="space-y-3">
-                                  {nodeInfo.resourcesDepletedOrUsed.map((resource: any, index: number) => (
-                                    <div 
-                                      key={index} 
-                                      className={`p-4 rounded-xl border ${
-                                        resource.impact === 'high' ? 'border-red-500/30 bg-red-500/10' :
-                                        resource.impact === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
-                                        'border-green-500/30 bg-green-500/10'
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-medium text-white">{resource.resource}</span>
-                                        </div>
-                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                                          resource.impact === 'high' ? 'bg-red-500/20 text-red-300' :
-                                          resource.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                                          'bg-green-500/20 text-green-300'
-                                        }`}>
-                                          {resource.impact}
-                                        </span>
+                            {/* Resources Depleted/Used */}
+                            <div className="space-y-4">
+                              <h4 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
+                                Resources Used/Depleted
+                              </h4>
+                              <div className="space-y-3">
+                                {currentNodeInfo.resourcesDepletedOrUsed.map((resource: NodeResource, index: number) => (
+                                  <div 
+                                    key={index} 
+                                    className={`p-4 rounded-xl border ${
+                                      resource.impact === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                      resource.impact === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                      'border-green-500/30 bg-green-500/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-white">{resource.resource}</span>
                                       </div>
-                                      <p className="text-gray-300 text-sm">{resource.amount}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Environmental Impact */}
-                              <div className="space-y-4">
-                                <h4 className="text-lg font-semibold text-blue-300 flex items-center gap-2">
-                                  <span>🌍</span> Environmental Impact
-                                </h4>
-                                <div className="space-y-3">
-                                  {nodeInfo.environmentalImpact.map((impact: any, index: number) => (
-                                    <div 
-                                      key={index} 
-                                      className={`p-4 rounded-xl border ${
-                                        impact.level === 'high' ? 'border-red-500/30 bg-red-500/10' :
-                                        impact.level === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
-                                        'border-green-500/30 bg-green-500/10'
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between mb-3">
-                                        <span className="font-medium text-white">{impact.category}</span>
-                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                                          impact.level === 'high' ? 'bg-red-500/20 text-red-300' :
-                                          impact.level === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                                          'bg-green-500/20 text-green-300'
-                                        }`}>
-                                          {impact.level}
-                                        </span>
-                                      </div>
-                                      <p className="text-gray-300 text-sm leading-relaxed">{impact.description}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Recommendations */}
-                              <div className="space-y-4">
-                                <h4 className="text-lg font-semibold text-green-300 flex items-center gap-2">
-                                  <span>💡</span> Recommendations
-                                </h4>
-                                <div className="space-y-3">
-                                  {nodeInfo.recommendations.map((recommendation: string, index: number) => (
-                                    <div key={index} className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                                      <p className="text-green-200 text-sm leading-relaxed">{recommendation}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Current Values */}
-                              {selectedNode.id !== 'product' && selectedNode.id !== 'location' && (
-                                <div className="pt-4 border-t border-gray-700/50">
-                                  <h4 className="text-lg font-semibold text-cyan-300 mb-4">Current Value</h4>
-                                  <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <span className="text-cyan-200 font-medium">Input Value:</span>
-                                      <span className="font-mono text-white bg-gray-800/50 px-3 py-1 rounded-lg">
-                                        {getCurrentValue(selectedNode.id) || 'Not set'}
+                                      <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                        resource.impact === 'high' ? 'bg-red-500/20 text-red-300' :
+                                        resource.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                        'bg-green-500/20 text-green-300'
+                                      }`}>
+                                        {resource.impact}
                                       </span>
                                     </div>
-                                    {selectedNode.status === 'filled' && (
-                                      <p className="text-green-300 text-sm">✓ Data provided</p>
-                                    )}
-                                    {selectedNode.status === 'skipped' && (
-                                      <p className="text-yellow-300 text-sm">⚠ Skipped</p>
-                                    )}
+                                    <p className="text-gray-300 text-sm">{resource.amount}</p>
                                   </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Environmental Impact */}
+                            <div className="space-y-4">
+                              <h4 className="text-lg font-semibold text-blue-300 flex items-center gap-2">
+                                <span>🌍</span> Environmental Impact
+                              </h4>
+                              <div className="space-y-3">
+                                {currentNodeInfo.environmentalImpact.map((impact: NodeImpact, index: number) => (
+                                  <div 
+                                    key={index} 
+                                    className={`p-4 rounded-xl border ${
+                                      impact.level === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                      impact.level === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                      'border-green-500/30 bg-green-500/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="font-medium text-white">{impact.category}</span>
+                                      <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                        impact.level === 'high' ? 'bg-red-500/20 text-red-300' :
+                                        impact.level === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                        'bg-green-500/20 text-green-300'
+                                      }`}>
+                                        {impact.level}
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-300 text-sm leading-relaxed">{impact.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Recommendations */}
+                            <div className="space-y-4">
+                              <h4 className="text-lg font-semibold text-green-300 flex items-center gap-2">
+                                <span>💡</span> Recommendations
+                              </h4>
+                              <div className="space-y-3">
+                                {currentNodeInfo.recommendations.map((recommendation: string, index: number) => (
+                                  <div key={index} className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                                    <p className="text-green-200 text-sm leading-relaxed">{recommendation}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Current Values */}
+                            {selectedNode && selectedNode.id !== 'product' && selectedNode.id !== 'location' && (
+                              <div className="pt-4 border-t border-gray-700/50">
+                                <h4 className="text-lg font-semibold text-cyan-300 mb-4">Current Value</h4>
+                                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="text-cyan-200 font-medium">Input Value:</span>
+                                    <span className="font-mono text-white bg-gray-800/50 px-3 py-1 rounded-lg">
+                                      {getCurrentValue(selectedNode.id) || 'Not set'}
+                                    </span>
+                                  </div>
+                                  {selectedNode.status === 'filled' && (
+                                    <p className="text-green-300 text-sm">✓ Data provided</p>
+                                  )}
+                                  {selectedNode.status === 'skipped' && (
+                                    <p className="text-yellow-300 text-sm">⚠ Skipped</p>
+                                  )}
                                 </div>
-                              )}
-                            </>
-                          );
-                        })()}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </motion.div>
                     </div>
                   </div>
