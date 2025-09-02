@@ -14,6 +14,11 @@ interface Project {
   lastModified: string;
   status: 'Active' | 'Draft' | 'Completed';
   type: 'Steel' | 'Aluminum' | 'Copper' | 'Other';
+  lcaData?: {
+    inputs: LCAInput[];
+    graphNodes: GraphNode[];
+    analysisComplete: boolean;
+  };
 }
 
 interface LCAInput {
@@ -41,12 +46,18 @@ function LifeCycleModeler({
   inputs, 
   setInputs, 
   currentStep, 
-  setCurrentStep 
+  setCurrentStep,
+  onShowMissingValuesPopup,
+  onComplete,
+  onInputChange
 }: { 
   inputs: LCAInput[];
   setInputs: React.Dispatch<React.SetStateAction<LCAInput[]>>;
   currentStep: number;
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
+  onShowMissingValuesPopup: (missingInputs: LCAInput[]) => void;
+  onComplete: () => void;
+  onInputChange?: () => void;
 }) {
 
   // Helper functions for enhanced UI
@@ -124,10 +135,40 @@ function LifeCycleModeler({
         skipped: false
       };
       setInputs(updatedInputs);
+      
+      // Notify parent of input change
+      if (onInputChange) {
+        onInputChange();
+      }
     }
     
     if (currentStep < inputs.length - 1) {
       setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleComplete = () => {
+    // Mark current input as completed if it has a value
+    const updatedInputs = [...inputs];
+    if (updatedInputs[currentStep].value.trim() !== '') {
+      updatedInputs[currentStep] = {
+        ...updatedInputs[currentStep],
+        completed: true,
+        skipped: false
+      };
+      setInputs(updatedInputs);
+    }
+
+    // Check for missing values across ALL inputs (not completed and not skipped)
+    const missingInputs = updatedInputs.filter(input => !input.completed && !input.skipped);
+    
+    // Always show popup if there are ANY missing values
+    if (missingInputs.length > 0) {
+      // Show popup for missing values
+      onShowMissingValuesPopup(missingInputs);
+    } else {
+      // All values are filled, show completion
+      onComplete();
     }
   };
 
@@ -140,6 +181,12 @@ function LifeCycleModeler({
       value: ''
     };
     setInputs(updatedInputs);
+    
+    // Notify parent of input change
+    if (onInputChange) {
+      onInputChange();
+    }
+    
     if (currentStep < inputs.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -155,14 +202,14 @@ function LifeCycleModeler({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Compact Header Section */}
-      <div className="mb-4 flex-shrink-0">
-        <div className="flex items-center space-x-3 mb-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-            <Play className="w-4 h-4 text-white" />
+      {/* Streamlined Header Section */}
+      <div className="mb-6 flex-shrink-0">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+            <Play className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Life Cycle Modeler</h2>
+            <h2 className="text-2xl font-bold text-white">Life Cycle Modeler</h2>
             <p className="text-gray-400 text-sm">Configure your LCA parameters</p>
           </div>
         </div>
@@ -177,35 +224,35 @@ function LifeCycleModeler({
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-transparent to-pink-500/20"></div>
           </div>
 
-          <div className="relative z-10 h-full p-4 flex flex-col">
+          <div className="relative z-10 h-full p-6 flex flex-col">
             
             {/* Header with Title & Progress */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                     {currentStep + 1}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white leading-tight">{currentInput.label}</h3>
-                    <div className="text-xs text-gray-400">Step {currentStep + 1} of {inputs.length}</div>
+                    <h3 className="text-xl font-bold text-white leading-tight">{currentInput.label}</h3>
+                    <div className="text-sm text-gray-400 mt-1">Step {currentStep + 1} of {inputs.length}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-purple-400">
+                  <div className="text-2xl font-bold text-purple-400">
                     {Math.round(((inputs.filter(i => i.completed).length) / inputs.length) * 100)}%
                   </div>
-                  <div className="text-xs text-gray-400">Complete</div>
+                  <div className="text-sm text-gray-400">Complete</div>
                 </div>
               </div>
               
               {/* Step Description */}
-              <div className="bg-gradient-to-r from-gray-800/40 to-gray-700/40 backdrop-blur-sm rounded-lg p-2 border border-gray-600/20">
-                <div className="flex items-start space-x-2">
-                  <div className="flex-shrink-0 mt-0.5">
+              <div className="bg-gradient-to-r from-gray-800/40 to-gray-700/40 backdrop-blur-sm rounded-xl p-4 border border-gray-600/20">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 mt-1">
                     {getStepIcon(currentInput.id)}
                   </div>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed">
                     {getStepDescription(currentInput.id)}
                   </p>
                 </div>
@@ -213,8 +260,8 @@ function LifeCycleModeler({
             </div>
 
             {/* Your Input Section */}
-            <div className="mb-3">
-              <label className="block text-xs font-semibold text-gray-200 mb-2 uppercase tracking-wide">
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-200 mb-3 uppercase tracking-wide">
                 Your Input
               </label>
               
@@ -223,15 +270,15 @@ function LifeCycleModeler({
                   <select
                     value={currentInput.value}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-lg px-3 py-2.5 text-white focus:outline-none transition-all duration-300 appearance-none cursor-pointer text-sm"
+                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-xl px-4 py-3 text-white focus:outline-none transition-all duration-300 appearance-none cursor-pointer text-sm"
                   >
                     <option value="" className="bg-gray-800">Choose an option...</option>
                     {currentInput.options?.map((option, index) => (
                       <option key={index} value={option} className="bg-gray-800">{option}</option>
                     ))}
                   </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -244,11 +291,11 @@ function LifeCycleModeler({
                     type={currentInput.type}
                     value={currentInput.value}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-lg px-3 py-2.5 text-white focus:outline-none transition-all duration-300 placeholder-gray-400 text-sm"
+                    className="w-full bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-2 border-gray-600/40 focus:border-purple-500/60 hover:border-purple-400/40 rounded-xl px-4 py-3 text-white focus:outline-none transition-all duration-300 placeholder-gray-400 text-sm"
                     placeholder={getPlaceholder(currentInput.id)}
                   />
                   {currentInput.type === 'number' && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-300 text-xs font-medium bg-purple-500/10 px-2 py-1 rounded">
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-purple-300 text-sm font-medium bg-purple-500/20 px-3 py-1 rounded-lg">
                       {getUnit(currentInput.id)}
                     </div>
                   )}
@@ -257,51 +304,51 @@ function LifeCycleModeler({
             </div>
 
             {/* Input Status & Tips */}
-            <div className="mb-3">
+            <div className="mb-6">
               {currentInput.value ? (
-                <div className="flex items-center space-x-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
-                  <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-3 h-3 text-green-400" />
+                <div className="flex items-center space-x-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                  <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
                   </div>
                   <div>
-                    <div className="text-green-400 text-xs font-medium">Input Received</div>
-                    <div className="text-green-300/80 text-xs">Ready to proceed</div>
+                    <div className="text-green-400 text-sm font-medium">Input Received</div>
+                    <div className="text-green-300/80 text-sm">Ready to proceed</div>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <div className="w-6 h-6 bg-blue-500/20 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center space-x-3 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="text-blue-400 text-xs font-medium">Awaiting Input</div>
-                    <div className="text-blue-300/80 text-xs">Enter data above</div>
+                    <div className="text-blue-400 text-sm font-medium">Awaiting Input</div>
+                    <div className="text-blue-300/80 text-sm">Enter data above</div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Enhanced Progress Section */}
-            <div className="mb-4 flex-1">
-              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm border border-gray-600/30 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-5 h-5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                      <Activity className="w-3 h-3 text-white" />
+            <div className="mb-6 flex-1">
+              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm border border-gray-600/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                      <Activity className="w-4 h-4 text-white" />
                     </div>
-                    <span className="text-xs font-semibold text-gray-200">Overall Progress</span>
+                    <span className="text-sm font-semibold text-gray-200">Overall Progress</span>
                   </div>
-                  <div className="text-xs text-purple-400 font-semibold">
+                  <div className="text-sm text-purple-400 font-semibold">
                     {inputs.filter(i => i.completed).length} / {inputs.length}
                   </div>
                 </div>
                 
                 <div className="relative">
-                  <div className="w-full bg-gray-700/60 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-gray-700/60 rounded-full h-3 overflow-hidden">
                     <div 
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500 relative"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500 relative"
                       style={{ width: `${(inputs.filter(i => i.completed).length / inputs.length) * 100}%` }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-full"></div>
@@ -309,7 +356,7 @@ function LifeCycleModeler({
                   </div>
                   
                   {/* Progress milestones */}
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between text-sm text-gray-500 mt-2">
                     <span className={inputs.filter(i => i.completed).length >= 1 ? 'text-purple-400' : ''}>
                       Started
                     </span>
@@ -325,34 +372,43 @@ function LifeCycleModeler({
             </div>
 
             {/* Navigation Buttons - Fixed at bottom */}
-            <div className="flex items-center justify-between space-x-2 flex-shrink-0">
+            <div className="flex items-center justify-between space-x-3 flex-shrink-0">
               <button
                 onClick={handlePrevious}
                 disabled={currentStep === 0}
-                className="group flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-gray-700/80 to-gray-600/80 hover:from-gray-600/80 hover:to-gray-500/80 disabled:from-gray-800/50 disabled:to-gray-800/50 disabled:text-gray-500 text-white rounded-lg transition-all duration-300 disabled:cursor-not-allowed border border-gray-500/30 hover:border-gray-400/50 disabled:border-gray-700/30 text-sm"
+                className="group flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-gray-700/80 to-gray-600/80 hover:from-gray-600/80 hover:to-gray-500/80 disabled:from-gray-800/50 disabled:to-gray-800/50 disabled:text-gray-500 text-white rounded-xl transition-all duration-300 disabled:cursor-not-allowed border border-gray-500/30 hover:border-gray-400/50 disabled:border-gray-700/30 text-sm font-medium"
               >
-                <svg className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span className="font-medium">Previous</span>
+                <span>Previous</span>
               </button>
               
               <button
                 onClick={handleSkip}
-                className="group flex items-center space-x-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 hover:border-amber-400/60 text-amber-300 hover:text-amber-200 rounded-lg transition-all duration-300 font-medium text-sm"
+                className="group flex items-center space-x-2 px-4 py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 hover:border-amber-400/60 text-amber-300 hover:text-amber-200 rounded-xl transition-all duration-300 font-medium text-sm"
               >
-                <Circle className="w-3 h-3" />
+                <Circle className="w-4 h-4" />
                 <span>Skip</span>
               </button>
               
-              <button
-                onClick={handleNext}
-                disabled={currentStep === inputs.length - 1}
-                className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-400 text-white rounded-lg transition-all duration-300 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 disabled:hover:scale-100 text-sm"
-              >
-                <span>Next Step</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform duration-200" />
-              </button>
+              {currentStep === inputs.length - 1 ? (
+                <button
+                  onClick={handleComplete}
+                  className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-green-500/25 transform hover:scale-105 text-sm"
+                >
+                  <span>Complete Analysis</span>
+                  <CheckCircle className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleNext}
+                  className="group flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 text-sm"
+                >
+                  <span>Next Step</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -362,7 +418,29 @@ function LifeCycleModeler({
 }
 
 // Enhanced Obsidian-style Graph Component with Pan & Zoom
-function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentStep: number }) {
+function ObsidianGraph({ 
+  inputs, 
+  currentStep, 
+  selectedNode, 
+  setSelectedNode,
+  getCurrentValue,
+  getNodeInfo,
+  autoFocusOnMount = false,
+  analysisComplete = false,
+  initialNodes,
+  onNodesChange
+}: { 
+  inputs: LCAInput[], 
+  currentStep: number,
+  selectedNode: GraphNode | null,
+  setSelectedNode: (node: GraphNode | null) => void,
+  getCurrentValue: (inputId: string) => string,
+  getNodeInfo: (node: GraphNode) => any,
+  autoFocusOnMount?: boolean,
+  analysisComplete?: boolean,
+  initialNodes?: GraphNode[],
+  onNodesChange?: (nodes: GraphNode[]) => void
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1.2 });
   const [targetTransform, setTargetTransform] = useState({ x: 0, y: 0, scale: 1.2 });
@@ -375,6 +453,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   const [, setAutoFocusEnabled] = useState(true);
   const [draggedNode, setDraggedNode] = useState<GraphNode | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [hasDragged, setHasDragged] = useState(false); // Track if user has dragged
 
   // Generate nodes dynamically based on input progress
   const generateNodes = useCallback((): GraphNode[] => {
@@ -412,7 +491,7 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
     return nodes;
   }, [inputs, currentStep]);
 
-  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [nodes, setNodes] = useState<GraphNode[]>(initialNodes || []);
 
   // Enhanced zoom functions with bounds checking
   const zoomIn = () => {
@@ -428,6 +507,42 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
     setTargetTransform(prev => ({ ...prev, scale: newScale }));
     setUserPreferredZoom(newScale);
   };
+
+  // Reset to overview - centers all nodes and sets appropriate zoom
+  const resetToOverview = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || nodes.length === 0) return;
+    
+    // Calculate bounding box of all nodes
+    const padding = 100;
+    const minX = Math.min(...nodes.map(n => n.x)) - padding;
+    const maxX = Math.max(...nodes.map(n => n.x)) + padding;
+    const minY = Math.min(...nodes.map(n => n.y)) - padding;
+    const maxY = Math.max(...nodes.map(n => n.y)) + padding;
+    
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    
+    // Calculate scale to fit all nodes with some padding
+    const canvasWidth = canvas.width / window.devicePixelRatio;
+    const canvasHeight = canvas.height / window.devicePixelRatio;
+    const scaleX = canvasWidth / contentWidth;
+    const scaleY = canvasHeight / contentHeight;
+    const optimalScale = Math.min(scaleX, scaleY, 1.2); // Cap at 1.2x for readability
+    
+    // Center the view
+    const targetX = (canvasWidth / 2) - (centerX * optimalScale);
+    const targetY = (canvasHeight / 2) - (centerY * optimalScale);
+    
+    setTargetTransform({
+      x: targetX,
+      y: targetY,
+      scale: optimalScale
+    });
+    setUserPreferredZoom(optimalScale);
+  }, [nodes]);
 
   // Smooth camera focus function
   const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number) => {
@@ -467,22 +582,67 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
         return newNode;
       });
       
-      // Auto-enable focus and focus on new node when a new node is added
-      if (updatedNodes.length > previousNodeCount && updatedNodes.length > 0 && currentStep >= 0 && currentStep < updatedNodes.length) {
-        setAutoFocusEnabled(true); // Enable auto-focus for new nodes
-        const currentNode = updatedNodes[currentStep];
-        if (currentNode) {
+      // Focus specifically on the NEW node when a new node is added
+      if (updatedNodes.length > previousNodeCount && updatedNodes.length > 0) {
+        const newNodeIndex = updatedNodes.length - 1; // The newest node
+        const newNode = updatedNodes[newNodeIndex];
+        
+        if (newNode) {
+          setAutoFocusEnabled(true); // Enable auto-focus for new nodes
           setTimeout(() => {
-            // Always focus on new node, maintaining current zoom level or using preferred zoom
-            const focusZoom = Math.max(userPreferredZoom, targetTransform.scale);
-            focusOnNode(currentNode.x, currentNode.y, focusZoom);
-          }, 100); // Small delay to ensure node is rendered
+            // Focus specifically on the new node with a good zoom level
+            const focusZoom = Math.max(userPreferredZoom, 1.5); // Ensure good zoom for new node
+            focusOnNode(newNode.x, newNode.y, focusZoom);
+          }, 200); // Small delay to ensure node is rendered
         }
       }
       
+      // Notify parent that nodes have changed due to input updates (not dragging)
+      shouldNotifyParent.current = true;
+      
       return updatedNodes;
     });
-  }, [inputs, currentStep, userPreferredZoom, generateNodes, focusOnNode, targetTransform.scale]);
+  }, [inputs, currentStep, userPreferredZoom, generateNodes, focusOnNode]);
+
+  // Handle initialNodes updates (for loading saved projects)
+  useEffect(() => {
+    if (initialNodes && initialNodes.length > 0) {
+      setNodes(initialNodes);
+    }
+  }, [initialNodes]);
+
+  // Track if we should notify parent (to prevent infinite loops during internal changes)
+  const shouldNotifyParent = useRef(false);
+
+  // Notify parent when nodes change (for saving projects) - but only when explicitly requested
+  useEffect(() => {
+    if (onNodesChange && shouldNotifyParent.current) {
+      onNodesChange(nodes);
+      shouldNotifyParent.current = false;
+    }
+  }, [nodes, onNodesChange]);
+
+  // Auto-focus to overview when component mounts (when modeler tab is opened)
+  useEffect(() => {
+    if (autoFocusOnMount && nodes.length > 0) {
+      const timer = setTimeout(() => {
+        resetToOverview();
+      }, 500); // Delay to ensure canvas is ready and nodes are rendered
+      
+      return () => clearTimeout(timer);
+    }
+  }, [autoFocusOnMount, resetToOverview]); // Removed nodes.length dependency to prevent conflicts
+
+  // Auto-focus to overview when analysis is completed
+  useEffect(() => {
+    if (analysisComplete && nodes.length > 0) {
+      const timer = setTimeout(() => {
+        resetToOverview();
+      }, 800); // Delay to allow for smooth completion transition
+      
+      return () => clearTimeout(timer);
+    }
+  }, [analysisComplete, nodes.length, resetToOverview]);
 
   // Keyboard event handler for zoom shortcuts
   useEffect(() => {
@@ -576,8 +736,6 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
     };
   }, []);
 
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-
   // Get touch distance for pinch gestures
   const getTouchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return 0;
@@ -593,6 +751,8 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
   const handleMouseDown = (e: React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    setHasDragged(false); // Reset drag flag on mouse down
 
     const rect = canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
@@ -634,6 +794,8 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
 
     if (draggedNode) {
       // Dragging a node
+      setHasDragged(true); // Mark that dragging has occurred
+      
       const worldX = (screenX - transform.x) / transform.scale;
       const worldY = (screenY - transform.y) / transform.scale;
       
@@ -647,6 +809,8 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
       );
     } else if (isDragging) {
       // Panning the canvas
+      setHasDragged(true); // Mark that dragging has occurred
+      
       const deltaX = e.clientX - lastMousePos.x;
       const deltaY = e.clientY - lastMousePos.y;
       
@@ -1157,9 +1321,58 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
 
   }, [transform, nodes, selectedNode]);
 
+  // Ensure canvas redraws properly when panel state changes (opening AND closing)
+  useEffect(() => {
+    // Force a canvas redraw after panel transition completes but before focus animation
+    const redrawTimeout = setTimeout(() => {
+      // The main drawing useEffect will handle the redraw automatically
+      // by depending on [transform, nodes, selectedNode]
+      setTransform(prev => ({ ...prev })); // Trigger redraw without changing values
+    }, 320); // Right after panel transition, before focus starts
+
+    return () => clearTimeout(redrawTimeout);
+  }, [selectedNode]); // Triggers on both opening (selectedNode set) and closing (selectedNode = null)
+
+  // Additional redraw trigger specifically for smooth closing transitions
+  const prevSelectedNodeRef = useRef(selectedNode);
+  const resetToOverviewRef = useRef(resetToOverview);
+  
+  // Update the ref whenever resetToOverview changes
+  useEffect(() => {
+    resetToOverviewRef.current = resetToOverview;
+  }, [resetToOverview]);
+  
+  useEffect(() => {
+    const prevSelectedNode = prevSelectedNodeRef.current;
+    prevSelectedNodeRef.current = selectedNode;
+
+    // If we just closed the panel (had a node, now don't)
+    if (prevSelectedNode && !selectedNode) {
+      const closeRedrawTimeout = setTimeout(() => {
+        // Ensure canvas adapts to the expanded width smoothly
+        setTransform(prev => ({ ...prev }));
+      }, 200); // Later in the closing transition for smoother feel
+
+      // Smoothly zoom back to overview when panel closes
+      const overviewTimeout = setTimeout(() => {
+        resetToOverviewRef.current();
+      }, 100); // Start overview transition early in panel close
+
+      return () => {
+        clearTimeout(closeRedrawTimeout);
+        clearTimeout(overviewTimeout);
+      };
+    }
+  }, [selectedNode]);
+
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Don't open panel if user was dragging
+    if (hasDragged) {
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     // Convert screen coordinates to world coordinates
@@ -1175,8 +1388,13 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
       return distance <= hitRadius;
     });
 
-    // Always set the selected node, regardless of drag state
-    setSelectedNode(clickedNode || null);
+    // Only set selected node if a node was actually clicked
+    // Clicking on empty space no longer clears the selection
+    if (clickedNode) {
+      setSelectedNode(clickedNode);
+      // Immediately start focusing on the clicked node for smooth UX
+      focusOnNode(clickedNode.x, clickedNode.y);
+    }
   };
 
   return (
@@ -1238,127 +1456,6 @@ function ObsidianGraph({ inputs, currentStep }: { inputs: LCAInput[], currentSte
             </svg>
           </button>
         </div>
-
-        {/* Node Information Overlay - Bottom Right Position */}
-        {selectedNode && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, x: 20 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, x: 20 }}
-            className="absolute bottom-4 right-4 z-20 bg-gray-900/70 backdrop-blur-md border border-gray-600/50 rounded-lg p-3 shadow-lg max-w-xs pointer-events-auto"
-            style={{ backdropFilter: 'blur(12px)' }}
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="absolute top-1 right-1 w-5 h-5 bg-gray-700/60 hover:bg-gray-600/80 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Compact Node Details */}
-            <div className="pr-3">
-              <div className="flex items-center space-x-2 mb-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  selectedNode.status === 'filled' ? 'bg-purple-500/80' :
-                  selectedNode.status === 'skipped' ? 'bg-yellow-500/80' :
-                  'bg-gray-600/80'
-                }`}>
-                  {selectedNode.status === 'filled' ? (
-                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  ) : selectedNode.status === 'skipped' ? (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-white leading-tight">{selectedNode.label}</h3>
-                  <div className="text-xs text-gray-300">
-                    {selectedNode.type.charAt(0).toUpperCase() + selectedNode.type.slice(1)} Node
-                  </div>
-                </div>
-              </div>
-
-              {/* Compact Status */}
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-gray-400">Status:</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  selectedNode.status === 'filled' ? 'bg-green-500/30 text-green-300' :
-                  selectedNode.status === 'skipped' ? 'bg-yellow-500/30 text-yellow-300' :
-                  'bg-gray-500/30 text-gray-300'
-                }`}>
-                  {selectedNode.status === 'filled' ? 'Completed' :
-                   selectedNode.status === 'skipped' ? 'Skipped' :
-                   'Pending'}
-                </span>
-              </div>
-
-              {/* Compact Status Message */}
-              <div className="text-xs mb-2">
-                {selectedNode.status === 'filled' && (
-                  <div className="text-green-300/80">✓ Data collected successfully</div>
-                )}
-                {selectedNode.status === 'skipped' && (
-                  <div className="text-yellow-300/80">⚠ Step was skipped</div>
-                )}
-                {selectedNode.status === 'empty' && (
-                  <div className="text-gray-300/80">⏳ Awaiting completion</div>
-                )}
-              </div>
-
-              {/* Compact Connections */}
-              {selectedNode.connections.length > 0 && (
-                <div className="mb-2">
-                  <div className="text-xs text-gray-400 mb-1">Connected to:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedNode.connections.slice(0, 2).map(connectionId => {
-                      const connectedNode = nodes.find(n => n.id === connectionId);
-                      return connectedNode ? (
-                        <span
-                          key={connectionId}
-                          className="text-xs bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30"
-                        >
-                          {connectedNode.label.split(' ')[0]}
-                        </span>
-                      ) : null;
-                    })}
-                    {selectedNode.connections.length > 2 && (
-                      <span className="text-xs text-gray-400">+{selectedNode.connections.length - 2} more</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Compact Action Button */}
-              <div className="pt-1">
-                {selectedNode.status === 'empty' && (
-                  <button className="w-full bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-medium py-1.5 px-2 rounded transition-colors">
-                    Complete
-                  </button>
-                )}
-                {selectedNode.status === 'filled' && (
-                  <button className="w-full bg-gray-600/80 hover:bg-gray-600 text-white text-xs font-medium py-1.5 px-2 rounded transition-colors">
-                    Edit
-                  </button>
-                )}
-                {selectedNode.status === 'skipped' && (
-                  <button className="w-full bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-medium py-1.5 px-2 rounded transition-colors">
-                    Provide Data
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Instructions */}
         <div className="absolute bottom-3 left-3 text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded backdrop-blur-sm">
@@ -1437,7 +1534,7 @@ export default function DemoPage() {
       functionalUnit: '100 kg',
       createdDate: '2025-07-10',
       lastModified: '2025-08-25',
-      status: 'Completed',
+      status: 'Draft',
       type: 'Copper'
     }
   ]);
@@ -1448,6 +1545,9 @@ export default function DemoPage() {
     functionalUnit: '',
     type: 'Steel' as Project['type']
   });
+
+  // Current project being worked on in the modeler
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
 
   // LCA Modeler State
   const [currentStep, setCurrentStep] = useState(0);
@@ -1541,11 +1641,300 @@ export default function DemoPage() {
     }
   ]);
 
+  // Node selection state for the sliding panel
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+
+  // Missing values popup state
+  const [showMissingValuesPopup, setShowMissingValuesPopup] = useState(false);
+  const [missingInputs, setMissingInputs] = useState<LCAInput[]>([]);
+  const [isFillingMissingValues, setIsFillingMissingValues] = useState(false);
+  const [analysisComplete, setAnalysisComplete] = useState(false);
+
+  // Graph nodes state for saving projects
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
+  const [projectSaved, setProjectSaved] = useState(false);
+  const [showSaveProjectPrompt, setShowSaveProjectPrompt] = useState(false);
+
+  // Helper function to get current input value
+  const getCurrentValue = (inputId: string) => {
+    const input = inputs.find(inp => inp.id === inputId);
+    return input?.value || '';
+  };
+
+  // Check if all inputs are filled and prompt to save if needed
+  const checkAndPromptSave = () => {
+    // Only prompt save when ALL inputs are completed with actual values (not skipped)
+    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
+    if (allInputsCompleted && !analysisComplete && !showSaveProjectPrompt && !currentProject) {
+      setShowSaveProjectPrompt(true);
+    }
+  };
+
+  // Save project with name from product selection
+  const saveProjectFromPrompt = () => {
+    // Only save if all inputs are completed with actual values
+    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
+    if (!allInputsCompleted) {
+      console.warn('Cannot save project: Not all inputs are completed with values');
+      setShowSaveProjectPrompt(false);
+      return;
+    }
+
+    if (currentProject) {
+      // Update existing project
+      const updatedProject: Project = {
+        ...currentProject,
+        lastModified: new Date().toISOString().split('T')[0],
+        status: 'Completed',
+        lcaData: {
+          inputs: [...inputs],
+          graphNodes: [...graphNodes],
+          analysisComplete: true
+        }
+      };
+
+      // Update the project in the projects list
+      setProjects(prevProjects => 
+        prevProjects.map(project => 
+          project.id === currentProject.id ? updatedProject : project
+        )
+      );
+
+      // Update current project reference
+      setCurrentProject(updatedProject);
+    } else {
+      // Create new project only if no current project (fallback)
+      const productSelection = getCurrentValue('product');
+      const projectName = productSelection || 'LCA Analysis';
+      
+      // Extract product name and functional unit from selection
+      const match = projectName.match(/^(.+?)\s*\((.+?)\)$/);
+      const cleanName = match ? match[1] : projectName;
+      const functionalUnit = match ? match[2] : '1 unit';
+      
+      const newProjectId = `project_${Date.now()}`;
+      
+      const savedProject: Project = {
+        id: newProjectId,
+        name: cleanName,
+        description: `LCA analysis for ${cleanName}`,
+        functionalUnit: functionalUnit,
+        createdDate: new Date().toISOString().split('T')[0],
+        lastModified: new Date().toISOString().split('T')[0],
+        status: 'Completed',
+        type: 'Other', // Default type, can be improved based on product selection
+        lcaData: {
+          inputs: [...inputs],
+          graphNodes: [...graphNodes],
+          analysisComplete: true
+        }
+      };
+
+      // Add the project to the projects list
+      setProjects(prevProjects => [...prevProjects, savedProject]);
+      setCurrentProject(savedProject);
+    }
+    
+    setAnalysisComplete(true);
+    setShowSaveProjectPrompt(false);
+    
+    // Show success notification
+    setProjectSaved(true);
+    setTimeout(() => setProjectSaved(false), 3000);
+  };
+
+  // Get detailed node information including resource depletion
+  const getNodeInfo = (node: GraphNode) => {
+    const nodeInfo: {
+      title: string;
+      description: string;
+      resourcesDepletedOrUsed: Array<{
+        resource: string;
+        amount: string;
+        impact: 'high' | 'medium' | 'low';
+        icon: string;
+      }>;
+      environmentalImpact: Array<{
+        category: string;
+        level: 'high' | 'medium' | 'low';
+        description: string;
+      }>;
+      recommendations: string[];
+    } = {
+      title: node.label,
+      description: '',
+      resourcesDepletedOrUsed: [],
+      environmentalImpact: [],
+      recommendations: []
+    };
+
+    switch (node.id) {
+      case 'product':
+        nodeInfo.description = 'The product definition stage sets the foundation for your entire LCA. This determines the functional unit and system boundaries.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Administrative Energy', amount: 'Minimal', impact: 'low', icon: '⚡' },
+          { resource: 'Digital Storage', amount: '~1 MB', impact: 'low', icon: '💾' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Footprint', level: 'low', description: 'Minimal emissions from digital activities' }
+        ];
+        nodeInfo.recommendations = ['Define clear functional units', 'Set appropriate system boundaries'];
+        break;
+
+      case 'location':
+        nodeInfo.description = 'Geographic location significantly affects energy grid composition, transportation distances, and regulatory frameworks.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Land Use', amount: 'Varies by facility size', impact: 'medium', icon: '🏭' },
+          { resource: 'Local Infrastructure', amount: 'Shared usage', impact: 'low', icon: '🛣️' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Intensity', level: 'high', description: 'Varies by local energy grid (coal vs renewable)' },
+          { category: 'Transportation Emissions', level: 'medium', description: 'Distance to suppliers and markets' }
+        ];
+        nodeInfo.recommendations = ['Choose locations with clean energy grids', 'Minimize transportation distances'];
+        break;
+
+      case 'energy':
+        nodeInfo.description = 'Energy source selection is critical for environmental impact. Renewable sources dramatically reduce lifecycle emissions.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Fossil Fuels', amount: 'High (if non-renewable)', impact: 'high', icon: '🛢️' },
+          { resource: 'Renewable Resources', amount: 'Sustainable (if renewable)', impact: 'low', icon: '🌱' },
+          { resource: 'Grid Infrastructure', amount: 'Shared usage', impact: 'medium', icon: '🔌' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'GHG Emissions', level: 'high', description: 'Major contributor to carbon footprint' },
+          { category: 'Air Quality', level: 'high', description: 'Fossil fuels create pollutants' },
+          { category: 'Resource Depletion', level: 'high', description: 'Non-renewable energy sources' }
+        ];
+        nodeInfo.recommendations = ['Prioritize renewable energy sources', 'Implement energy efficiency measures', 'Consider on-site solar/wind'];
+        break;
+
+      case 'electricity':
+        nodeInfo.description = 'Electricity consumption directly correlates with environmental impact based on the local energy grid composition.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Coal/Gas', amount: `${getCurrentValue('electricity') || '0'} kWh × grid factor`, impact: 'high', icon: '⚡' },
+          { resource: 'Water (cooling)', amount: '~2-3L per kWh', impact: 'medium', icon: '💧' },
+          { resource: 'Grid Capacity', amount: 'Shared infrastructure', impact: 'low', icon: '🔌' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Carbon Emissions', level: 'high', description: `${getCurrentValue('electricity') || '0'} kWh generates significant CO₂` },
+          { category: 'Water Consumption', level: 'medium', description: 'Thermoelectric power plants require cooling water' }
+        ];
+        nodeInfo.recommendations = ['Reduce electricity consumption', 'Use energy-efficient equipment', 'Source from renewable grids'];
+        break;
+
+      case 'scrapRate':
+        nodeInfo.description = 'Material waste during production represents lost resources and additional environmental burden.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Raw Materials', amount: `${getCurrentValue('scrapRate') || '0'}% waste`, impact: 'medium', icon: '🔨' },
+          { resource: 'Processing Energy', amount: 'Wasted on scrapped material', impact: 'medium', icon: '⚡' },
+          { resource: 'Landfill Space', amount: 'If not recycled', impact: 'medium', icon: '🗑️' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Resource Efficiency', level: 'medium', description: 'Higher scrap rates mean more resource consumption' },
+          { category: 'Waste Generation', level: 'medium', description: 'Increases overall material throughput' }
+        ];
+        nodeInfo.recommendations = ['Optimize manufacturing processes', 'Implement quality control', 'Design for manufacturability'];
+        break;
+
+      case 'scrapFate':
+        nodeInfo.description = 'The destination of scrap material significantly affects the overall environmental impact of the production process.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Recycling Energy', amount: 'If recycled', impact: 'low', icon: '♻️' },
+          { resource: 'Landfill Space', amount: 'If disposed', impact: 'high', icon: '🗑️' },
+          { resource: 'Transportation Fuel', amount: 'To recycling/disposal', impact: 'low', icon: '🚛' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Circular Economy', level: 'high', description: 'Recycling reduces virgin material demand' },
+          { category: 'Waste Impact', level: 'high', description: 'Landfilling creates long-term environmental burden' }
+        ];
+        nodeInfo.recommendations = ['Maximize recycling rates', 'Partner with certified recyclers', 'Design for recyclability'];
+        break;
+
+      case 'water':
+        nodeInfo.description = 'Water consumption affects local water resources and requires treatment, impacting aquatic ecosystems.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Freshwater', amount: `${getCurrentValue('water') || '0'} L per unit`, impact: 'high', icon: '💧' },
+          { resource: 'Treatment Chemicals', amount: 'For water purification', impact: 'medium', icon: '🧪' },
+          { resource: 'Energy (pumping/treatment)', amount: '~3-4 kWh per 1000L', impact: 'medium', icon: '⚡' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Water Scarcity', level: 'high', description: 'Depletes local freshwater resources' },
+          { category: 'Aquatic Ecosystems', level: 'medium', description: 'Affects water availability for ecosystems' },
+          { category: 'Treatment Impact', level: 'medium', description: 'Wastewater requires energy-intensive treatment' }
+        ];
+        nodeInfo.recommendations = ['Implement water recycling', 'Use water-efficient processes', 'Consider rainwater harvesting'];
+        break;
+
+      case 'materialSource':
+        nodeInfo.description = 'Raw material sourcing affects transportation emissions, local ecosystems, and supply chain sustainability.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Virgin Materials', amount: 'Primary resource extraction', impact: 'high', icon: '⛏️' },
+          { resource: 'Land (mining/forestry)', amount: 'Ecosystem disruption', impact: 'high', icon: '🌲' },
+          { resource: 'Water (extraction)', amount: 'Mining and processing', impact: 'medium', icon: '💧' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Biodiversity Loss', level: 'high', description: 'Habitat destruction from resource extraction' },
+          { category: 'Soil Degradation', level: 'high', description: 'Mining and logging affect soil quality' },
+          { category: 'Transportation Emissions', level: 'medium', description: 'Distance from source to facility' }
+        ];
+        nodeInfo.recommendations = ['Source from certified sustainable suppliers', 'Minimize transportation distances', 'Use recycled materials when possible'];
+        break;
+
+      case 'transportation':
+        nodeInfo.description = 'Transportation mode significantly affects fuel consumption, emissions, and delivery timeframes.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Fossil Fuels', amount: 'Varies by mode and distance', impact: 'high', icon: '⛽' },
+          { resource: 'Vehicle Infrastructure', amount: 'Shared transportation network', impact: 'medium', icon: '🛣️' },
+          { resource: 'Packaging Materials', amount: 'Protection during transport', impact: 'low', icon: '📦' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'GHG Emissions', level: 'high', description: 'Major source of scope 3 emissions' },
+          { category: 'Air Pollution', level: 'high', description: 'NOx, particulates from combustion' },
+          { category: 'Noise Pollution', level: 'medium', description: 'Traffic noise in urban areas' }
+        ];
+        nodeInfo.recommendations = ['Choose efficient transportation modes', 'Optimize logistics and routing', 'Consider rail/sea over road/air'];
+        break;
+
+      case 'endOfLife':
+        nodeInfo.description = 'End-of-life treatment determines whether materials re-enter the economy or become waste, affecting long-term sustainability.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Recycling Infrastructure', amount: 'If recyclable design', impact: 'low', icon: '♻️' },
+          { resource: 'Landfill Space', amount: 'If not recyclable', impact: 'high', icon: '🗑️' },
+          { resource: 'Incineration Energy', amount: 'Energy recovery possible', impact: 'medium', icon: '🔥' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Circular Economy', level: 'high', description: 'Determines material recovery potential' },
+          { category: 'Long-term Pollution', level: 'high', description: 'Landfilled materials may leach toxins' },
+          { category: 'Resource Recovery', level: 'high', description: 'Recycling reduces need for virgin materials' }
+        ];
+        nodeInfo.recommendations = ['Design for disassembly', 'Use recyclable materials', 'Implement take-back programs'];
+        break;
+
+      default:
+        nodeInfo.description = 'This process step contributes to the overall environmental impact of your product lifecycle.';
+        nodeInfo.resourcesDepletedOrUsed = [
+          { resource: 'Various Resources', amount: 'Context dependent', impact: 'medium', icon: '🔄' }
+        ];
+        nodeInfo.environmentalImpact = [
+          { category: 'Environmental Impact', level: 'medium', description: 'Specific impacts depend on process details' }
+        ];
+        nodeInfo.recommendations = ['Define specific process parameters', 'Quantify resource usage'];
+    }
+
+    return nodeInfo;
+  };
+
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
   const handleTabChange = (tab: string) => {
+    // Save current project progress before switching tabs
+    if (activeTab === 'modeler') {
+      saveCurrentProjectProgress();
+    }
+    
     setActiveTab(tab);
     setSidebarOpen(false); // Close sidebar on mobile after selection
   };
@@ -1562,9 +1951,16 @@ export default function DemoPage() {
         status: 'Draft',
         type: newProject.type
       };
+      
+      // Add project to list
       setProjects([project, ...projects]);
+      
+      // Reset form
       setNewProject({ name: '', description: '', functionalUnit: '', type: 'Steel' });
       setShowCreateModal(false);
+      
+      // Automatically start working on the new project
+      continueProject(project);
     }
   };
 
@@ -1620,6 +2016,339 @@ export default function DemoPage() {
       default: return 'bg-gray-500/20 text-gray-400';
     }
   };
+
+  // Handle showing missing values popup
+  const handleShowMissingValuesPopup = (missing: LCAInput[]) => {
+    setMissingInputs(missing);
+    setShowMissingValuesPopup(true);
+  };
+
+  // Handle completion when all values are filled
+  const handleComplete = () => {
+    setAnalysisComplete(true);
+    
+    // Save the current analysis as a completed project
+    saveCurrentProject();
+    
+    // Trigger showing full graph view
+    setTimeout(() => {
+      // This will be handled by the graph component's auto-focus
+    }, 500);
+  };
+
+  // Save current LCA analysis as a project
+  const saveCurrentProject = () => {
+    // Only save if all inputs are completed with actual values
+    const allInputsCompleted = inputs.every(input => input.completed && input.value.trim() !== '');
+    if (!allInputsCompleted) {
+      console.warn('Cannot save project: Not all inputs are completed with values');
+      return;
+    }
+
+    // If we have a current project, update it; otherwise create new one
+    if (currentProject) {
+      // Update existing project
+      const updatedProject: Project = {
+        ...currentProject,
+        lastModified: new Date().toISOString().split('T')[0],
+        status: 'Completed',
+        lcaData: {
+          inputs: [...inputs],
+          graphNodes: [...graphNodes],
+          analysisComplete: true
+        }
+      };
+
+      // Update the project in the projects list
+      setProjects(prevProjects => 
+        prevProjects.map(project => 
+          project.id === currentProject.id ? updatedProject : project
+        )
+      );
+
+      // Update current project reference
+      setCurrentProject(updatedProject);
+    } else {
+      // Create new project only if no current project (fallback)
+      const newProjectId = `project_${Date.now()}`;
+      const projectName = `LCA Analysis ${new Date().toLocaleDateString()}`;
+      
+      const newProject: Project = {
+        id: newProjectId,
+        name: projectName,
+        description: 'Completed LCA analysis with full data inputs',
+        functionalUnit: '1 unit',
+        createdDate: new Date().toISOString().split('T')[0],
+        lastModified: new Date().toISOString().split('T')[0],
+        status: 'Completed',
+        type: 'Other',
+        lcaData: {
+          inputs: [...inputs],
+          graphNodes: [...graphNodes],
+          analysisComplete: true
+        }
+      };
+
+      // Add new project to the list
+      setProjects(prevProjects => [...prevProjects, newProject]);
+      setCurrentProject(newProject);
+    }
+    
+    // Show success notification
+    setProjectSaved(true);
+    setTimeout(() => setProjectSaved(false), 3000);
+  };
+
+  // Initialize fresh inputs for a specific project
+  const initializeInputsForProject = (project: Project): LCAInput[] => {
+    return [
+      {
+        id: 'product',
+        label: 'Product Selection',
+        type: 'dropdown',
+        options: [`${project.name} (${project.functionalUnit})`],
+        value: `${project.name} (${project.functionalUnit})`,
+        completed: true,
+        skipped: false
+      },
+      {
+        id: 'location',
+        label: 'Factory Location',
+        type: 'dropdown',
+        options: ['Asia', 'Europe', 'North America', 'South America', 'Africa', 'Oceania'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'rawMaterials',
+        label: 'Raw Materials Source',
+        type: 'dropdown',
+        options: ['Primary extraction', 'Recycled materials', 'Bio-based materials', 'Mixed sources'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'electricity',
+        label: 'Electricity Consumption (kWh)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'water',
+        label: 'Water Usage (L)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'transportation',
+        label: 'Transportation Mode',
+        type: 'dropdown',
+        options: ['Truck', 'Rail', 'Ship', 'Air', 'Pipeline'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'scrapRate',
+        label: 'Material Scrap Rate (%)',
+        type: 'number',
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'packaging',
+        label: 'Packaging Material',
+        type: 'dropdown',
+        options: ['Cardboard', 'Plastic', 'Metal', 'Glass', 'Biodegradable'],
+        value: '',
+        completed: false,
+        skipped: false
+      },
+      {
+        id: 'endOfLife',
+        label: 'End-of-Life Treatment',
+        type: 'dropdown',
+        options: ['Recycling', 'Landfill', 'Incineration', 'Reuse'],
+        value: '',
+        completed: false,
+        skipped: false
+      }
+    ];
+  };
+
+  // Save current project's progress (even if incomplete)
+  const saveCurrentProjectProgress = () => {
+    if (currentProject) {
+      const updatedProjects = projects.map(project => {
+        if (project.id === currentProject.id) {
+          return {
+            ...project,
+            lastModified: new Date().toISOString().split('T')[0],
+            lcaData: {
+              inputs: [...inputs],
+              graphNodes: [...graphNodes],
+              analysisComplete: analysisComplete
+            }
+          };
+        }
+        return project;
+      });
+      setProjects(updatedProjects);
+    }
+  };
+
+  // Open a saved completed project
+  const openSavedProject = (project: Project) => {
+    // Save current project progress before switching
+    saveCurrentProjectProgress();
+    
+    if (project.lcaData) {
+      // Load the project data
+      setCurrentProject(project);
+      setInputs(project.lcaData.inputs);
+      setGraphNodes(project.lcaData.graphNodes);
+      setAnalysisComplete(project.lcaData.analysisComplete);
+      
+      // Reset current step to last incomplete step or 0
+      const lastIncompleteIndex = project.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
+      setCurrentStep(lastIncompleteIndex >= 0 ? lastIncompleteIndex : 0);
+      
+      // Switch to the modeler tab to view the analysis
+      setActiveTab('modeler');
+    }
+  };
+
+  // Continue working on a draft or active project
+  const continueProject = (project: Project) => {
+    // Save current project progress before switching
+    saveCurrentProjectProgress();
+    
+    setCurrentProject(project);
+    
+    // If project has saved LCA data, load it
+    if (project.lcaData) {
+      setInputs(project.lcaData.inputs);
+      setGraphNodes(project.lcaData.graphNodes);
+      setAnalysisComplete(project.lcaData.analysisComplete);
+      
+      // Set current step to the first incomplete input
+      const firstIncompleteIndex = project.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
+      setCurrentStep(firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0);
+    } else {
+      // Initialize fresh inputs for this project type
+      const freshInputs = initializeInputsForProject(project);
+      setInputs(freshInputs);
+      setGraphNodes([]);
+      setCurrentStep(0);
+      setAnalysisComplete(false);
+    }
+    
+    // Switch to the modeler tab
+    setActiveTab('modeler');
+  };
+
+  // Fill missing values with AI simulation
+  const fillMissingValuesWithAI = async () => {
+    setIsFillingMissingValues(true);
+    
+    // Simulate AI processing time and fill random appropriate values
+    const updatedInputs = [...inputs];
+    
+    for (let i = 0; i < missingInputs.length; i++) {
+      // Simulate AI thinking time (longer for more complex fields)
+      const thinkingTime = missingInputs[i].type === 'number' ? 1200 : 800;
+      await new Promise(resolve => setTimeout(resolve, thinkingTime));
+      
+      const missingInput = missingInputs[i];
+      const inputIndex = updatedInputs.findIndex(inp => inp.id === missingInput.id);
+      
+      if (inputIndex !== -1) {
+        let aiValue = '';
+        
+        // Generate appropriate AI values based on input type
+        switch (missingInput.id) {
+          case 'product':
+            aiValue = updatedInputs[inputIndex].options?.[0] || 'Steel Production Analysis (1 ton)';
+            break;
+          case 'location':
+            aiValue = 'India - Mumbai';
+            break;
+          case 'energy':
+            aiValue = 'Mixed Grid';
+            break;
+          case 'electricity':
+            aiValue = (Math.random() * 150 + 75).toFixed(1); // 75-225 kWh
+            break;
+          case 'scrapRate':
+            aiValue = (Math.random() * 8 + 3).toFixed(1); // 3-11%
+            break;
+          case 'scrapFate':
+            aiValue = 'Recycled Internally';
+            break;
+          case 'waterUsage':
+            aiValue = (Math.random() * 200 + 150).toFixed(1); // 150-350 L
+            break;
+          case 'transport':
+            aiValue = 'Truck';
+            break;
+          case 'packaging':
+            aiValue = 'Cardboard';
+            break;
+          case 'endOfLife':
+            aiValue = 'Recycling';
+            break;
+          default:
+            if (missingInput.options && missingInput.options.length > 0) {
+              aiValue = missingInput.options[Math.floor(Math.random() * missingInput.options.length)];
+            } else {
+              aiValue = 'AI Generated Value';
+            }
+        }
+        
+        updatedInputs[inputIndex] = {
+          ...updatedInputs[inputIndex],
+          value: aiValue,
+          completed: true,
+          skipped: false
+        };
+        
+        setInputs([...updatedInputs]);
+      }
+    }
+    
+    // Final delay before completion
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    setIsFillingMissingValues(false);
+    setShowMissingValuesPopup(false);
+    setAnalysisComplete(true);
+    
+    // Save the completed project
+    saveCurrentProject();
+  };
+
+  // Monitor inputs and check if all are filled to prompt save
+  useEffect(() => {
+    checkAndPromptSave();
+  }, [inputs, analysisComplete, showSaveProjectPrompt]);
+
+  // Auto-save project progress periodically while working
+  useEffect(() => {
+    if (currentProject && activeTab === 'modeler') {
+      const autoSaveInterval = setInterval(() => {
+        saveCurrentProjectProgress();
+      }, 30000); // Auto-save every 30 seconds
+
+      return () => clearInterval(autoSaveInterval);
+    }
+  }, [currentProject, activeTab, inputs, graphNodes, analysisComplete]);
 
   return (
     <main className="min-h-screen bg-black text-white relative">
@@ -1886,17 +2615,32 @@ export default function DemoPage() {
                     </div>
 
                     {/* Project Status and Type */}
-                    <div className="flex items-center space-x-2 mb-4">
+                    <div className="flex items-center flex-wrap gap-2 mb-4">
                       <span className={`px-2 py-1 rounded text-xs border ${getStatusColor(project.status)}`}>
                         {project.status}
                       </span>
                       <span className={`px-2 py-1 rounded text-xs ${getTypeColor(project.type)}`}>
                         {project.type}
                       </span>
+                      {project.lcaData && (
+                        <span className="px-2 py-1 rounded text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 flex items-center space-x-1">
+                          <BarChart3 className="w-3 h-3" />
+                          <span>LCA Data</span>
+                        </span>
+                      )}
+                      {project.lcaData && (
+                        <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400 border border-blue-500/30 flex items-center space-x-1">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>
+                            {project.lcaData.inputs.filter(input => input.completed).length}/
+                            {project.lcaData.inputs.length} Complete
+                          </span>
+                        </span>
+                      )}
                     </div>
 
                     {/* Project Dates */}
-                    <div className="space-y-2 text-sm text-gray-400">
+                    <div className="space-y-2 text-sm text-gray-400 mb-4">
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4" />
                         <span>Created: {project.createdDate}</span>
@@ -1906,6 +2650,28 @@ export default function DemoPage() {
                         <span>Modified: {project.lastModified}</span>
                       </div>
                     </div>
+
+                    {/* Open Project Button for Completed Projects */}
+                    {project.status === 'Completed' && project.lcaData && (
+                      <button
+                        onClick={() => openSavedProject(project)}
+                        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        <span>Open Analysis</span>
+                      </button>
+                    )}
+
+                    {/* Continue Project Button for Draft/Active Projects */}
+                    {(project.status === 'Draft' || project.status === 'Active') && (
+                      <button
+                        onClick={() => continueProject(project)}
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                        <span>Continue</span>
+                      </button>
+                    )}
                   </motion.div>
                 ))}
               </div>
@@ -1929,27 +2695,193 @@ export default function DemoPage() {
 
           {/* Life Cycle Modeler Tab */}
           {activeTab === 'modeler' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="h-[calc(100vh-100px)] flex overflow-hidden"
-            >
-              {/* Left Panel - Input Forms */}
-              <div className="w-1/3 bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-4 overflow-hidden">
-                <LifeCycleModeler 
-                  inputs={inputs}
-                  setInputs={setInputs}
-                  currentStep={currentStep}
-                  setCurrentStep={setCurrentStep}
-                />
-              </div>
-              
-              {/* Right Panel - Graph Visualization */}
-              <div className="flex-1 bg-gradient-to-br from-gray-900/30 to-gray-800/20 p-4 overflow-hidden">
-                <ObsidianGraph inputs={inputs} currentStep={currentStep} />
+            <div className="fixed inset-0 pt-16 bg-black">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="h-[calc(100vh-64px)] flex overflow-hidden pl-4 pr-8"
+              >
+                {/* Left Panel - Input Forms */}
+                <div className="w-[32rem] bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-r border-gray-700/30 p-4 overflow-hidden ml-20">
+                  <LifeCycleModeler 
+                    inputs={inputs}
+                    setInputs={setInputs}
+                    currentStep={currentStep}
+                    setCurrentStep={setCurrentStep}
+                    onShowMissingValuesPopup={handleShowMissingValuesPopup}
+                    onComplete={handleComplete}
+                    onInputChange={checkAndPromptSave}
+                  />
+                </div>
+                
+                {/* Center Panel - Graph Visualization (Stable width) */}
+                <div 
+                  className={`transition-all duration-300 ease-in-out bg-gradient-to-br from-gray-900/30 to-gray-800/20 p-4 overflow-hidden min-w-96 ${
+                    selectedNode ? 'w-[calc(100%-59rem)]' : 'w-[calc(100%-35rem)]'
+                  }`}
+                >
+                  <ObsidianGraph 
+                    inputs={inputs} 
+                    currentStep={currentStep}
+                    selectedNode={selectedNode}
+                    setSelectedNode={setSelectedNode}
+                    getCurrentValue={getCurrentValue}
+                    getNodeInfo={getNodeInfo}
+                    autoFocusOnMount={true}
+                    analysisComplete={analysisComplete}
+                    initialNodes={graphNodes}
+                    onNodesChange={setGraphNodes}
+                  />
+                </div>
+
+                {/* Right Panel - Node Information Card (Sliding) */}
+                <div className={`transition-all duration-300 ease-in-out bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-l border-gray-700/30 overflow-hidden ${
+                  selectedNode ? 'w-96 opacity-100' : 'w-0 opacity-0'
+                }`}>
+                {selectedNode && (
+                  <div className="h-full flex flex-col overflow-hidden">
+                    {/* Fixed Header */}
+                    <div className="flex-shrink-0 p-6 border-b border-gray-700/30">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-semibold text-white">Node Information</h3>
+                        <button
+                          onClick={() => setSelectedNode(null)}
+                          className="p-2 hover:bg-gray-700/50 rounded-lg transition-colors"
+                        >
+                          <svg className="w-5 h-5 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Scrollable Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-6"
+                      >
+                        {(() => {
+                          const nodeInfo = getNodeInfo(selectedNode);
+                          return (
+                            <>
+                              {/* Node Header */}
+                              <div className="pb-4 border-b border-gray-700/50">
+                                <h3 className="text-2xl font-bold text-white mb-3">{nodeInfo.title}</h3>
+                                <p className="text-gray-300 text-sm leading-relaxed">{nodeInfo.description}</p>
+                              </div>
+
+                              {/* Resources Depleted/Used */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
+                                  Resources Used/Depleted
+                                </h4>
+                                <div className="space-y-3">
+                                  {nodeInfo.resourcesDepletedOrUsed.map((resource: any, index: number) => (
+                                    <div 
+                                      key={index} 
+                                      className={`p-4 rounded-xl border ${
+                                        resource.impact === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                        resource.impact === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                        'border-green-500/30 bg-green-500/10'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-white">{resource.resource}</span>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                          resource.impact === 'high' ? 'bg-red-500/20 text-red-300' :
+                                          resource.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          'bg-green-500/20 text-green-300'
+                                        }`}>
+                                          {resource.impact}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-300 text-sm">{resource.amount}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Environmental Impact */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-blue-300 flex items-center gap-2">
+                                  <span>🌍</span> Environmental Impact
+                                </h4>
+                                <div className="space-y-3">
+                                  {nodeInfo.environmentalImpact.map((impact: any, index: number) => (
+                                    <div 
+                                      key={index} 
+                                      className={`p-4 rounded-xl border ${
+                                        impact.level === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                        impact.level === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                        'border-green-500/30 bg-green-500/10'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between mb-3">
+                                        <span className="font-medium text-white">{impact.category}</span>
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                          impact.level === 'high' ? 'bg-red-500/20 text-red-300' :
+                                          impact.level === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          'bg-green-500/20 text-green-300'
+                                        }`}>
+                                          {impact.level}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-300 text-sm leading-relaxed">{impact.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Recommendations */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-green-300 flex items-center gap-2">
+                                  <span>💡</span> Recommendations
+                                </h4>
+                                <div className="space-y-3">
+                                  {nodeInfo.recommendations.map((recommendation: string, index: number) => (
+                                    <div key={index} className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                                      <p className="text-green-200 text-sm leading-relaxed">{recommendation}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Current Values */}
+                              {selectedNode.id !== 'product' && selectedNode.id !== 'location' && (
+                                <div className="pt-4 border-t border-gray-700/50">
+                                  <h4 className="text-lg font-semibold text-cyan-300 mb-4">Current Value</h4>
+                                  <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="text-cyan-200 font-medium">Input Value:</span>
+                                      <span className="font-mono text-white bg-gray-800/50 px-3 py-1 rounded-lg">
+                                        {getCurrentValue(selectedNode.id) || 'Not set'}
+                                      </span>
+                                    </div>
+                                    {selectedNode.status === 'filled' && (
+                                      <p className="text-green-300 text-sm">✓ Data provided</p>
+                                    )}
+                                    {selectedNode.status === 'skipped' && (
+                                      <p className="text-yellow-300 text-sm">⚠ Skipped</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </motion.div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
+            </div>
           )}
 
           {activeTab === 'optimizer' && (
@@ -2102,6 +3034,182 @@ export default function DemoPage() {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Save Project Prompt */}
+      {showSaveProjectPrompt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl"
+          >
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-white">Analysis Complete!</h2>
+              <p className="text-gray-300 leading-relaxed">
+                All inputs have been filled. Would you like to save this analysis as a project?
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-xl p-4 mb-6 border border-gray-600/30">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2 flex items-center">
+                <FolderOpen className="w-4 h-4 mr-2 text-green-400" />
+                Project Details:
+              </h3>
+              <div className="text-sm text-gray-300">
+                <div className="flex justify-between">
+                  <span>Name:</span>
+                  <span className="text-green-400 font-medium">
+                    {getCurrentValue('product') || 'LCA Analysis'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowSaveProjectPrompt(false)}
+                className="flex-1 bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 hover:text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 border border-gray-600/50 hover:border-gray-500/50"
+              >
+                Continue Without Saving
+              </button>
+              <button
+                onClick={saveProjectFromPrompt}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-green-500/25 transform hover:scale-105"
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>Save Project</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Missing Values Popup */}
+      {showMissingValuesPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl"
+          >
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold mb-2 text-white">Missing Values Detected</h2>
+            </div>
+            
+            <p className="text-gray-300 mb-4 text-center leading-relaxed text-sm">
+              We found <span className="text-purple-400 font-semibold">{missingInputs.length} missing values</span> in your analysis. 
+              Our AI can intelligently fill these with industry-standard estimates based on your existing inputs.
+            </p>
+
+            <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-xl p-3 mb-4 border border-gray-600/30">
+              <h3 className="text-sm font-semibold text-gray-200 mb-2 flex items-center">
+                <svg className="w-4 h-4 mr-2 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.732 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                Missing Fields:
+              </h3>
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
+                {missingInputs.map((input, index) => (
+                  <li key={index} className="flex items-center text-xs text-gray-300">
+                    <div className="w-1.5 h-1.5 bg-red-400 rounded-full mr-2 flex-shrink-0"></div>
+                    {input.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {isFillingMissingValues ? (
+              <div className="text-center py-4">
+                <div className="relative w-16 h-16 mx-auto mb-4">
+                  {/* Outer rotating ring */}
+                  <div className="absolute inset-0 border-3 border-purple-500/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-3 border-t-purple-500 border-r-purple-400 rounded-full animate-spin"></div>
+                  
+                  {/* Inner pulsing core */}
+                  <div className="absolute inset-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-4 bg-white rounded-full animate-ping"></div>
+                  
+                  {/* AI Brain Icon */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </div>
+                </div>
+                
+                <div className="text-lg font-semibold text-white mb-2 flex items-center justify-center space-x-2">
+                  <svg className="w-4 h-4 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-base">AI Processing...</span>
+                </div>
+                <div className="text-xs text-gray-400 mb-3">
+                  Analyzing your inputs and generating optimal values
+                </div>
+                
+                {/* Progress indicator */}
+                <div className="w-full bg-gray-700 rounded-full h-1.5 mb-3">
+                  <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+                
+                {/* Animated dots */}
+                <div className="flex items-center justify-center space-x-1">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+                
+                {/* AI Messages */}
+                <div className="mt-3 text-xs text-gray-500 space-y-1">
+                  <div className="animate-pulse">• Analyzing material properties...</div>
+                  <div className="animate-pulse" style={{ animationDelay: '0.5s' }}>• Calculating environmental impacts...</div>
+                  <div className="animate-pulse" style={{ animationDelay: '1s' }}>• Optimizing resource allocation...</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowMissingValuesPopup(false)}
+                  className="flex-1 bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 hover:text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 border border-gray-600/50 hover:border-gray-500/50"
+                >
+                  Fill Manually
+                </button>
+                <button
+                  onClick={fillMissingValuesWithAI}
+                  className="flex-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-purple-500/25 transform hover:scale-105"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>Fill with AI</span>
+                  <div className="w-2 h-2 bg-white/60 rounded-full animate-ping"></div>
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Project Saved Notification */}
+      {projectSaved && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2"
+        >
+          <CheckCircle className="w-5 h-5" />
+          <span className="font-medium">Project saved successfully!</span>
+        </motion.div>
       )}
     </main>
   );
