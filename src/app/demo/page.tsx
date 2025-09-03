@@ -123,8 +123,8 @@ function LifeCycleModeler({
     updatedInputs[currentStep] = {
       ...updatedInputs[currentStep],
       value,
-      // Don't mark as completed until user clicks Next
-      completed: false,
+      // Mark as completed if the input has a value
+      completed: value.trim() !== '',
       skipped: false
     };
     setInputs(updatedInputs);
