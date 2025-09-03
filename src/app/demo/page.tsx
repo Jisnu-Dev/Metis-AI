@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info, Download, PieChart, TrendingUp, Target, Award, Bell, Shield, Palette, Globe, Moon, Sun, Volume2, Monitor, Smartphone, Mail, Lock, Key, Save, Camera, Briefcase, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -691,12 +691,13 @@ function ObsidianGraph({
   useEffect(() => {
     if (onNodeInfoUpdate) {
       if (selectedNode) {
+        // Inline the getNodeInfo call to avoid dependency issues
         onNodeInfoUpdate(getNodeInfo(selectedNode));
       } else {
         onNodeInfoUpdate(null);
       }
     }
-  }, [selectedNode, onNodeInfoUpdate, getNodeInfo]);
+  }, [selectedNode, onNodeInfoUpdate]); // Removed getNodeInfo to prevent circular dependencies
 
   // Auto-focus state for new nodes (using setter only)
   const [, setAutoFocusEnabled] = useState(true);
@@ -795,7 +796,7 @@ function ObsidianGraph({
   }, [nodes]);
 
   // Smooth camera focus function
-  const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number, updateUserZoom: boolean = false) => {
+  const focusOnNode = useCallback((nodeX: number, nodeY: number, targetScale?: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
@@ -816,8 +817,8 @@ function ObsidianGraph({
       scale: finalScale
     });
     
-    // Only update user preferred zoom when explicitly requested
-    if (updateUserZoom && targetScale) {
+    // Also update user preferred zoom to maintain this zoom level
+    if (targetScale) {
       setUserPreferredZoom(finalScale);
     }
   }, [userPreferredZoom]);
@@ -850,22 +851,28 @@ function ObsidianGraph({
         
         if (newNode) {
           setTimeout(() => {
-            // Focus on the new node with a good zoom level but don't reset the view
-            const finalZoom = Math.max(userPreferredZoom, 1.5);
+            // Focus on the new node with inline logic to avoid dependency issues
             const canvas = canvasRef.current;
-            if (canvas) {
-              const devicePixelRatio = window.devicePixelRatio || 1;
-              const centerX = (canvas.width / devicePixelRatio) / 2;
-              const centerY = (canvas.height / devicePixelRatio) / 2;
-              const targetX = centerX - newNode.x * finalZoom;
-              const targetY = centerY - newNode.y * finalZoom;
-              
-              setTargetTransform({
-                x: targetX,
-                y: targetY,
-                scale: finalZoom
-              });
-            }
+            if (!canvas) return;
+            
+            const devicePixelRatio = window.devicePixelRatio || 1;
+            const centerX = (canvas.width / devicePixelRatio) / 2;
+            const centerY = (canvas.height / devicePixelRatio) / 2;
+            
+            // Use a good zoom level for the new node
+            const focusZoom = Math.max(userPreferredZoom, 1.5);
+            
+            // Calculate the transform needed to center the node
+            const targetX = centerX - newNode.x * focusZoom;
+            const targetY = centerY - newNode.y * focusZoom;
+            
+            setTargetTransform({
+              x: targetX,
+              y: targetY,
+              scale: focusZoom
+            });
+            
+            setUserPreferredZoom(focusZoom);
           }, 300); // Delay to ensure node is properly rendered
         }
       }
@@ -875,7 +882,7 @@ function ObsidianGraph({
       
       return updatedNodes;
     });
-  }, [inputs, currentStep, isLoadingSavedProject, generateNodes]);
+  }, [inputs, currentStep, isLoadingSavedProject]);
 
   // Handle initialNodes updates (for loading saved projects)
   useEffect(() => {
@@ -1275,11 +1282,6 @@ function ObsidianGraph({
     setTouchDistance(0);
   };
 
-  // Reset view function - shows full graph overview
-  const resetView = () => {
-    resetToOverview();
-  };
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1571,17 +1573,11 @@ function ObsidianGraph({
 
   }, [transform, nodes, selectedNode]);
 
-  // Ensure canvas redraws properly when panel state changes (opening AND closing)
-  useEffect(() => {
-    // Force a canvas redraw after panel transition completes but before focus animation
-    const redrawTimeout = setTimeout(() => {
-      // The main drawing useEffect will handle the redraw automatically
-      // by depending on [transform, nodes, selectedNode]
-      setTransform(prev => ({ ...prev })); // Trigger redraw without changing values
-    }, 320); // Right after panel transition, before focus starts
-
-    return () => clearTimeout(redrawTimeout);
-  }, [selectedNode]); // Triggers on both opening (selectedNode set) and closing (selectedNode = null)
+  // Reset view function that doesn't cause infinite loops
+  const resetView = useCallback(() => {
+    setTargetTransform({ x: 0, y: 0, scale: 1.2 });
+    setUserPreferredZoom(1.2);
+  }, []);
 
   // Additional redraw trigger specifically for smooth closing transitions
   const prevSelectedNodeRef = useRef(selectedNode);
@@ -1754,6 +1750,9 @@ function ObsidianGraph({
 export default function DemoPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showAnalysisView, setShowAnalysisView] = useState(false);
+  const [analysisProject, setAnalysisProject] = useState<Project | null>(null);
+  const [analysisSelectedNode, setAnalysisSelectedNode] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([
@@ -1910,51 +1909,6 @@ export default function DemoPage() {
   const [showSaveProjectPrompt, setShowSaveProjectPrompt] = useState(false);
   const [isUserGraphUpdate, setIsUserGraphUpdate] = useState(false);
   const [isLoadingSavedProject, setIsLoadingSavedProject] = useState(false);
-  const [viewingProjectAnalysis, setViewingProjectAnalysis] = useState<Project | null>(null);
-  const [showAnalysisPage, setShowAnalysisPage] = useState(false);
-  const [analysisSelectedNode, setAnalysisSelectedNode] = useState<GraphNode | null>(null);
-  const [analysisCurrentNodeInfo, setAnalysisCurrentNodeInfo] = useState<NodeInfo | null>(null);
-  const [selectedReportProject, setSelectedReportProject] = useState<Project | null>(null);
-
-  // Settings state
-  const [settings, setSettings] = useState({
-    theme: 'dark',
-    language: 'en',
-    notifications: {
-      email: true,
-      push: true,
-      reports: true,
-      updates: false
-    },
-    display: {
-      autoFocus: true,
-      animations: true,
-      highContrast: false,
-      fontSize: 'medium'
-    },
-    privacy: {
-      analytics: true,
-      crashReports: true,
-      shareData: false
-    }
-  });
-
-  // User profile state
-  const [userProfile, setUserProfile] = useState({
-    name: 'Jisnu Saravanan',
-    email: 'alex.johnson@company.com',
-    organization: 'Green Tech Solutions',
-    role: 'Sustainability Analyst',
-    avatar: '',
-    bio: 'Passionate about sustainable technology and environmental impact assessment.',
-    preferences: {
-      defaultProjectType: 'Product Development',
-      timezone: 'UTC-5',
-      dateFormat: 'MM/DD/YYYY'
-    }
-  });
-
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Helper function to get current input value
   const getCurrentValue = (inputId: string) => {
@@ -2074,12 +2028,13 @@ export default function DemoPage() {
     // Update graph nodes
     setGraphNodes(newNodes);
     
-    // Auto-reset inputs when graph is updated by user interaction (not programmatic loading)
-    if (isUserGraphUpdate && analysisComplete && newNodes.length > 0) {
+    // Auto-reset inputs only AFTER project is saved (not just when analysis is complete)
+    if (isUserGraphUpdate && projectSaved && newNodes.length > 0) {
       // Reset inputs and start fresh
       setTimeout(() => {
         resetToFirstInput();
         setIsUserGraphUpdate(false); // Reset the flag
+        setProjectSaved(false); // Reset the saved flag so it doesn't reset again
       }, 500); // Small delay to let the graph update complete
     }
   };
@@ -2423,9 +2378,11 @@ export default function DemoPage() {
 
   // Open a saved completed project
   const openSavedProject = (project: Project) => {
-    // Set the project to view and show analysis page
-    setViewingProjectAnalysis(project);
-    setShowAnalysisPage(true);
+    if (project.lcaData) {
+      // Set the analysis project and show the dedicated analysis view
+      setAnalysisProject(project);
+      setShowAnalysisView(true);
+    }
   };
 
   // Continue working on a draft or active project
@@ -2467,168 +2424,6 @@ export default function DemoPage() {
     
     // Switch to the modeler tab
     setActiveTab('modeler');
-  };
-
-  // Report generation functions
-  const generatePDFReport = (project: Project) => {
-    if (!project.lcaData) return;
-
-    // Create PDF content as HTML string
-    const htmlContent = `
-      <html>
-        <head>
-          <title>LCA Report - ${project.name}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 40px; }
-            .title { font-size: 24px; font-weight: bold; color: #2563eb; }
-            .subtitle { font-size: 16px; color: #666; margin-top: 10px; }
-            .section { margin: 30px 0; }
-            .section-title { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 15px; }
-            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 20px 0; }
-            .stat-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; text-align: center; }
-            .stat-value { font-size: 24px; font-weight: bold; color: #2563eb; }
-            .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
-            .input-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            .input-table th, .input-table td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
-            .input-table th { background-color: #f9fafb; font-weight: bold; }
-            .status-completed { color: #059669; font-weight: bold; }
-            .status-skipped { color: #d97706; font-weight: bold; }
-            .status-empty { color: #6b7280; }
-            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">Life Cycle Assessment Report</div>
-            <div class="subtitle">${project.name}</div>
-            <div style="font-size: 14px; color: #666; margin-top: 10px;">
-              Generated on ${new Date().toLocaleDateString()} | MetisAI Platform
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Project Overview</div>
-            <p><strong>Project Name:</strong> ${project.name}</p>
-            <p><strong>Description:</strong> ${project.description}</p>
-            <p><strong>Type:</strong> ${project.type}</p>
-            <p><strong>Status:</strong> ${project.status}</p>
-            <p><strong>Created:</strong> ${project.createdDate}</p>
-            <p><strong>Last Modified:</strong> ${project.lastModified}</p>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Analysis Summary</div>
-            <div class="stats-grid">
-              <div class="stat-card">
-                <div class="stat-value">${project.lcaData.inputs.filter(i => i.completed).length}</div>
-                <div class="stat-label">Inputs Completed</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">${project.lcaData.inputs.filter(i => i.skipped).length}</div>
-                <div class="stat-label">Inputs Skipped</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">${project.lcaData.graphNodes?.length || 0}</div>
-                <div class="stat-label">Process Nodes</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">${project.lcaData.analysisComplete ? '100%' : Math.round((project.lcaData.inputs.filter(i => i.completed).length / project.lcaData.inputs.length) * 100) + '%'}</div>
-                <div class="stat-label">Completion Rate</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Input Details</div>
-            <table class="input-table">
-              <thead>
-                <tr>
-                  <th>Step</th>
-                  <th>Process</th>
-                  <th>Status</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${project.lcaData.inputs.map((input, index) => `
-                  <tr>
-                    <td>${index + 1}</td>
-                    <td>${input.label}</td>
-                    <td class="${input.completed ? 'status-completed' : input.skipped ? 'status-skipped' : 'status-empty'}">
-                      ${input.completed ? 'Completed' : input.skipped ? 'Skipped' : 'Empty'}
-                    </td>
-                    <td>${input.value || 'N/A'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <div class="footer">
-            <p>This report was generated by MetisAI - Advanced Life Cycle Assessment Platform</p>
-            <p>For more information, visit our platform or contact support.</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Create a blob and download
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `LCA_Report_${project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const generateExcelReport = (project: Project) => {
-    if (!project.lcaData) return;
-
-    // Create CSV content
-    const csvContent = [
-      ['LCA Report - ' + project.name],
-      ['Generated on', new Date().toLocaleDateString()],
-      [''],
-      ['Project Information'],
-      ['Field', 'Value'],
-      ['Project Name', project.name],
-      ['Description', project.description],
-      ['Type', project.type],
-      ['Status', project.status],
-      ['Created', project.createdDate],
-      ['Last Modified', project.lastModified],
-      [''],
-      ['Analysis Summary'],
-      ['Metric', 'Value'],
-      ['Inputs Completed', project.lcaData.inputs.filter(i => i.completed).length],
-      ['Inputs Skipped', project.lcaData.inputs.filter(i => i.skipped).length],
-      ['Process Nodes', project.lcaData.graphNodes?.length || 0],
-      ['Completion Rate', (project.lcaData.analysisComplete ? '100%' : Math.round((project.lcaData.inputs.filter(i => i.completed).length / project.lcaData.inputs.length) * 100) + '%')],
-      [''],
-      ['Input Details'],
-      ['Step', 'Process', 'Status', 'Value'],
-      ...project.lcaData.inputs.map((input, index) => [
-        index + 1,
-        input.label,
-        input.completed ? 'Completed' : input.skipped ? 'Skipped' : 'Empty',
-        input.value || 'N/A'
-      ])
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `LCA_Data_${project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   // Fill missing values with AI simulation
@@ -2998,7 +2793,7 @@ export default function DemoPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.1 * index }}
-                    className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300"
+                    className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6 backdrop-blur-sm hover:border-purple-500/30 transition-all duration-300 flex flex-col h-full"
                   >
                     {/* Project Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -3053,7 +2848,7 @@ export default function DemoPage() {
                     </div>
 
                     {/* Project Dates */}
-                    <div className="space-y-2 text-sm text-gray-400 mb-4">
+                    <div className="space-y-2 text-sm text-gray-400 mb-4 flex-grow">
                       <div className="flex items-center space-x-2">
                         <Calendar className="w-4 h-4" />
                         <span>Created: {project.createdDate}</span>
@@ -3064,27 +2859,26 @@ export default function DemoPage() {
                       </div>
                     </div>
 
-                    {/* Open Project Button for Completed Projects */}
-                    {project.status === 'Completed' && project.lcaData && (
-                      <button
-                        onClick={() => openSavedProject(project)}
-                        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        <span>Open Analysis</span>
-                      </button>
-                    )}
-
-                    {/* Continue Project Button for Draft/Active Projects */}
-                    {(project.status === 'Draft' || project.status === 'Active') && (
-                      <button
-                        onClick={() => continueProject(project)}
-                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                      >
-                        <ArrowRight className="w-4 h-4" />
-                        <span>Continue</span>
-                      </button>
-                    )}
+                    {/* Action Button - Always present at bottom */}
+                    <div className="mt-auto">
+                      {project.status === 'Completed' && project.lcaData ? (
+                        <button
+                          onClick={() => openSavedProject(project)}
+                          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                          <span>Open Analysis</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => continueProject(project)}
+                          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                          <span>Continue</span>
+                        </button>
+                      )}
+                    </div>
                   </motion.div>
                 ))}
               </div>
@@ -3438,233 +3232,15 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="p-6"
+              className="text-center py-16"
             >
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white mb-2">Reports & Exports</h1>
-                <p className="text-gray-400">Generate comprehensive reports and export your LCA analysis data</p>
+              <FileText className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold mb-4">Reports & Exports</h1>
+              <p className="text-gray-400 mb-8">Generate comprehensive reports and export your analysis</p>
+              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
+                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
+                <p className="text-gray-400">Advanced reporting system in development</p>
               </div>
-
-              {/* Report Types */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-500/20 rounded-xl p-6">
-                  <div className="flex items-center mb-4">
-                    <FileText className="w-8 h-8 text-blue-400 mr-3" />
-                    <h3 className="text-xl font-semibold text-white">PDF Reports</h3>
-                  </div>
-                  <p className="text-gray-300 mb-4 text-sm">
-                    Generate comprehensive PDF reports with project overview, analysis summary, and detailed input data.
-                  </p>
-                  <div className="flex items-center space-x-2 text-sm text-blue-300">
-                    <Award className="w-4 h-4" />
-                    <span>Professional Format</span>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/20 rounded-xl p-6">
-                  <div className="flex items-center mb-4">
-                    <BarChart3 className="w-8 h-8 text-green-400 mr-3" />
-                    <h3 className="text-xl font-semibold text-white">Excel Data</h3>
-                  </div>
-                  <p className="text-gray-300 mb-4 text-sm">
-                    Export raw data to CSV/Excel format for further analysis, custom reporting, and data processing.
-                  </p>
-                  <div className="flex items-center space-x-2 text-sm text-green-300">
-                    <TrendingUp className="w-4 h-4" />
-                    <span>Data Analysis</span>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-500/20 rounded-xl p-6">
-                  <div className="flex items-center mb-4">
-                    <PieChart className="w-8 h-8 text-purple-400 mr-3" />
-                    <h3 className="text-xl font-semibold text-white">Summary Dashboards</h3>
-                  </div>
-                  <p className="text-gray-300 mb-4 text-sm">
-                    Quick overview reports with key metrics, completion rates, and visual summaries.
-                  </p>
-                  <div className="flex items-center space-x-2 text-sm text-purple-300">
-                    <Target className="w-4 h-4" />
-                    <span>Quick Insights</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Selection */}
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6 mb-8">
-                <h2 className="text-xl font-semibold text-white mb-4">Select Project for Report Generation</h2>
-                
-                {projects.filter(p => p.lcaData).length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-400 mb-2">No Completed Projects</h3>
-                    <p className="text-gray-500 mb-6">Complete at least one LCA analysis to generate reports</p>
-                    <button
-                      onClick={() => setActiveTab('modeler')}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300"
-                    >
-                      Start New Analysis
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {projects.filter(p => p.lcaData).map(project => (
-                      <div
-                        key={project.id}
-                        className={`border rounded-lg p-4 cursor-pointer transition-all duration-300 ${
-                          selectedReportProject?.id === project.id
-                            ? 'border-blue-500 bg-blue-900/20'
-                            : 'border-gray-600 bg-gray-800/50 hover:border-gray-500'
-                        }`}
-                        onClick={() => setSelectedReportProject(project)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-white text-sm">{project.name}</h3>
-                          <span className={`px-2 py-1 rounded text-xs ${getStatusColor(project.status)}`}>
-                            {project.status}
-                          </span>
-                        </div>
-                        <p className="text-gray-400 text-xs mb-3 line-clamp-2">{project.description}</p>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-500">
-                            {project.lcaData?.inputs.filter(i => i.completed).length}/{project.lcaData?.inputs.length} completed
-                          </span>
-                          <span className="text-gray-500">{project.lastModified}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Report Generation Actions */}
-              {selectedReportProject && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6"
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h2 className="text-xl font-semibold text-white">Generate Report</h2>
-                      <p className="text-gray-400 text-sm">Selected: {selectedReportProject.name}</p>
-                    </div>
-                    <button
-                      onClick={() => setSelectedReportProject(null)}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* PDF Report */}
-                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
-                      <div className="flex items-center mb-4">
-                        <FileText className="w-6 h-6 text-blue-400 mr-3" />
-                        <h3 className="text-lg font-semibold text-white">PDF Report</h3>
-                      </div>
-                      <p className="text-gray-300 text-sm mb-4">
-                        Professional report with project overview, analysis summary, and complete input data.
-                      </p>
-                      <div className="space-y-2 mb-4 text-sm text-gray-400">
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Project overview & metadata</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Analysis summary & statistics</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Detailed input breakdown</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Professional formatting</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => generatePDFReport(selectedReportProject)}
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download PDF Report</span>
-                      </button>
-                    </div>
-
-                    {/* Excel Export */}
-                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-6">
-                      <div className="flex items-center mb-4">
-                        <BarChart3 className="w-6 h-6 text-green-400 mr-3" />
-                        <h3 className="text-lg font-semibold text-white">Excel Export</h3>
-                      </div>
-                      <p className="text-gray-300 text-sm mb-4">
-                        Raw data export in CSV format for custom analysis and further processing.
-                      </p>
-                      <div className="space-y-2 mb-4 text-sm text-gray-400">
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Project metadata & info</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Complete input data</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>Analysis metrics</span>
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                          <span>CSV format compatibility</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => generateExcelReport(selectedReportProject)}
-                        className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download CSV Data</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Stats */}
-                  <div className="mt-6 pt-6 border-t border-gray-700/30">
-                    <h4 className="text-sm font-semibold text-gray-300 mb-3">Report Preview</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-400">
-                          {selectedReportProject.lcaData?.inputs.filter(i => i.completed).length}
-                        </div>
-                        <div className="text-xs text-gray-400">Completed Inputs</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-yellow-400">
-                          {selectedReportProject.lcaData?.inputs.filter(i => i.skipped).length}
-                        </div>
-                        <div className="text-xs text-gray-400">Skipped Inputs</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-400">
-                          {selectedReportProject.lcaData?.graphNodes?.length || 0}
-                        </div>
-                        <div className="text-xs text-gray-400">Process Nodes</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-purple-400">
-                          {selectedReportProject.lcaData?.analysisComplete ? '100%' : 
-                           Math.round((selectedReportProject.lcaData?.inputs.filter(i => i.completed).length || 0) / 
-                                     (selectedReportProject.lcaData?.inputs.length || 1) * 100) + '%'}
-                        </div>
-                        <div className="text-xs text-gray-400">Completion</div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
             </motion.div>
           )}
 
@@ -3673,212 +3249,14 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="p-6"
+              className="text-center py-16"
             >
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
-                <p className="text-gray-400">Configure your MetisAI platform preferences and account settings</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Settings Navigation */}
-                <div className="lg:col-span-1">
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-4">
-                    <h2 className="text-lg font-semibold text-white mb-4">Settings Categories</h2>
-                    <div className="space-y-2">
-                      {[
-                        { id: 'appearance', icon: Palette, label: 'Appearance', desc: 'Theme and display' },
-                        { id: 'notifications', icon: Bell, label: 'Notifications', desc: 'Email and alerts' },
-                        { id: 'privacy', icon: Shield, label: 'Privacy & Security', desc: 'Data and security' },
-                        { id: 'preferences', icon: Settings, label: 'Preferences', desc: 'Default settings' }
-                      ].map(category => (
-                        <div key={category.id} className="p-3 rounded-lg border border-gray-600/30 bg-gray-800/30">
-                          <div className="flex items-center">
-                            <category.icon className="w-5 h-5 text-blue-400 mr-3" />
-                            <div>
-                              <div className="text-sm font-medium text-white">{category.label}</div>
-                              <div className="text-xs text-gray-400">{category.desc}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Settings Content */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Appearance Settings */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <Palette className="w-6 h-6 text-blue-400 mr-3" />
-                      <h3 className="text-xl font-semibold text-white">Appearance</h3>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Theme</label>
-                        <div className="grid grid-cols-3 gap-3">
-                          {['dark', 'light', 'auto'].map(theme => (
-                            <button
-                              key={theme}
-                              onClick={() => setSettings(prev => ({ ...prev, theme }))}
-                              className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                                settings.theme === theme
-                                  ? 'border-blue-500 bg-blue-900/30 text-blue-300'
-                                  : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center space-x-2">
-                                {theme === 'dark' && <Moon className="w-4 h-4" />}
-                                {theme === 'light' && <Sun className="w-4 h-4" />}
-                                {theme === 'auto' && <Monitor className="w-4 h-4" />}
-                                <span className="capitalize">{theme}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Font Size</label>
-                        <select
-                          value={settings.display.fontSize}
-                          onChange={(e) => setSettings(prev => ({
-                            ...prev,
-                            display: { ...prev.display, fontSize: e.target.value }
-                          }))}
-                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white"
-                        >
-                          <option value="small">Small</option>
-                          <option value="medium">Medium</option>
-                          <option value="large">Large</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-gray-300">Auto-focus on new nodes</div>
-                          <div className="text-xs text-gray-500">Automatically focus when new nodes are added</div>
-                        </div>
-                        <button
-                          onClick={() => setSettings(prev => ({
-                            ...prev,
-                            display: { ...prev.display, autoFocus: !prev.display.autoFocus }
-                          }))}
-                          className={`relative w-11 h-6 rounded-full transition-colors ${
-                            settings.display.autoFocus ? 'bg-blue-600' : 'bg-gray-600'
-                          }`}
-                        >
-                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.display.autoFocus ? 'translate-x-5' : 'translate-x-0'
-                          }`} />
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-gray-300">Enable animations</div>
-                          <div className="text-xs text-gray-500">Smooth transitions and effects</div>
-                        </div>
-                        <button
-                          onClick={() => setSettings(prev => ({
-                            ...prev,
-                            display: { ...prev.display, animations: !prev.display.animations }
-                          }))}
-                          className={`relative w-11 h-6 rounded-full transition-colors ${
-                            settings.display.animations ? 'bg-blue-600' : 'bg-gray-600'
-                          }`}
-                        >
-                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            settings.display.animations ? 'translate-x-5' : 'translate-x-0'
-                          }`} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notification Settings */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <Bell className="w-6 h-6 text-yellow-400 mr-3" />
-                      <h3 className="text-xl font-semibold text-white">Notifications</h3>
-                    </div>
-                    <div className="space-y-4">
-                      {[
-                        { key: 'email', label: 'Email notifications', desc: 'Receive updates via email' },
-                        { key: 'push', label: 'Push notifications', desc: 'Browser notifications' },
-                        { key: 'reports', label: 'Report generation', desc: 'Notify when reports are ready' },
-                        { key: 'updates', label: 'Platform updates', desc: 'New features and announcements' }
-                      ].map(notif => (
-                        <div key={notif.key} className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-medium text-gray-300">{notif.label}</div>
-                            <div className="text-xs text-gray-500">{notif.desc}</div>
-                          </div>
-                          <button
-                            onClick={() => setSettings(prev => ({
-                              ...prev,
-                              notifications: { 
-                                ...prev.notifications, 
-                                [notif.key]: !prev.notifications[notif.key as keyof typeof prev.notifications]
-                              }
-                            }))}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${
-                              settings.notifications[notif.key as keyof typeof settings.notifications] ? 'bg-blue-600' : 'bg-gray-600'
-                            }`}
-                          >
-                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.notifications[notif.key as keyof typeof settings.notifications] ? 'translate-x-5' : 'translate-x-0'
-                            }`} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Privacy Settings */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <Shield className="w-6 h-6 text-green-400 mr-3" />
-                      <h3 className="text-xl font-semibold text-white">Privacy & Security</h3>
-                    </div>
-                    <div className="space-y-4">
-                      {[
-                        { key: 'analytics', label: 'Usage analytics', desc: 'Help improve the platform' },
-                        { key: 'crashReports', label: 'Crash reports', desc: 'Automatic error reporting' },
-                        { key: 'shareData', label: 'Share anonymized data', desc: 'For research purposes' }
-                      ].map(privacy => (
-                        <div key={privacy.key} className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-medium text-gray-300">{privacy.label}</div>
-                            <div className="text-xs text-gray-500">{privacy.desc}</div>
-                          </div>
-                          <button
-                            onClick={() => setSettings(prev => ({
-                              ...prev,
-                              privacy: { 
-                                ...prev.privacy, 
-                                [privacy.key]: !prev.privacy[privacy.key as keyof typeof prev.privacy]
-                              }
-                            }))}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${
-                              settings.privacy[privacy.key as keyof typeof settings.privacy] ? 'bg-blue-600' : 'bg-gray-600'
-                            }`}
-                          >
-                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              settings.privacy[privacy.key as keyof typeof settings.privacy] ? 'translate-x-5' : 'translate-x-0'
-                            }`} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Save Settings */}
-                  <div className="flex justify-end">
-                    <button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300 flex items-center space-x-2">
-                      <Save className="w-4 h-4" />
-                      <span>Save Settings</span>
-                    </button>
-                  </div>
-                </div>
+              <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold mb-4">Settings</h1>
+              <p className="text-gray-400 mb-8">Configure your MetisAI preferences</p>
+              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
+                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
+                <p className="text-gray-400">Settings panel under construction</p>
               </div>
             </motion.div>
           )}
@@ -3888,509 +3266,19 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="p-6"
+              className="text-center py-16"
             >
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white mb-2">User Profile</h1>
-                <p className="text-gray-400">Manage your account information and preferences</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Profile Overview */}
-                <div className="lg:col-span-1">
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="text-center mb-6">
-                      <div className="relative inline-block mb-4">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
-                          {userProfile.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <button className="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1 transition-colors">
-                          <Camera className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <h3 className="text-xl font-semibold text-white">{userProfile.name}</h3>
-                      <p className="text-gray-400">{userProfile.role}</p>
-                      <p className="text-sm text-gray-500">{userProfile.organization}</p>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center text-sm">
-                        <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-gray-300">{userProfile.email}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <Globe className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-gray-300">{userProfile.preferences.timezone}</span>
-                      </div>
-                      <div className="flex items-center text-sm">
-                        <Briefcase className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-gray-300">{userProfile.preferences.defaultProjectType}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setIsEditingProfile(!isEditingProfile)}
-                      className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>{isEditingProfile ? 'Cancel Edit' : 'Edit Profile'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Profile Details */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Personal Information */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center">
-                        <User className="w-6 h-6 text-blue-400 mr-3" />
-                        <h3 className="text-xl font-semibold text-white">Personal Information</h3>
-                      </div>
-                      {!isEditingProfile && (
-                        <button
-                          onClick={() => setIsEditingProfile(true)}
-                          className="text-blue-400 hover:text-blue-300 transition-colors"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                        {isEditingProfile ? (
-                          <input
-                            type="text"
-                            value={userProfile.name}
-                            onChange={(e) => setUserProfile(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          />
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.name}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                        {isEditingProfile ? (
-                          <input
-                            type="email"
-                            value={userProfile.email}
-                            onChange={(e) => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          />
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.email}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Organization</label>
-                        {isEditingProfile ? (
-                          <input
-                            type="text"
-                            value={userProfile.organization}
-                            onChange={(e) => setUserProfile(prev => ({ ...prev, organization: e.target.value }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          />
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.organization}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
-                        {isEditingProfile ? (
-                          <select
-                            value={userProfile.role}
-                            onChange={(e) => setUserProfile(prev => ({ ...prev, role: e.target.value }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="Environmental Analyst">Environmental Analyst</option>
-                            <option value="Sustainability Manager">Sustainability Manager</option>
-                            <option value="Research Scientist">Research Scientist</option>
-                            <option value="Consultant">Consultant</option>
-                            <option value="Student">Student</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.role}</div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {isEditingProfile && (
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Bio</label>
-                        <textarea
-                          value={userProfile.bio}
-                          onChange={(e) => setUserProfile(prev => ({ ...prev, bio: e.target.value }))}
-                          rows={3}
-                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          placeholder="Tell us about yourself..."
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Preferences */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <Settings className="w-6 h-6 text-green-400 mr-3" />
-                      <h3 className="text-xl font-semibold text-white">Preferences</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Default Project Type</label>
-                        {isEditingProfile ? (
-                          <select
-                            value={userProfile.preferences.defaultProjectType}
-                            onChange={(e) => setUserProfile(prev => ({
-                              ...prev,
-                              preferences: { ...prev.preferences, defaultProjectType: e.target.value }
-                            }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="Manufacturing">Manufacturing</option>
-                            <option value="Energy">Energy</option>
-                            <option value="Transportation">Transportation</option>
-                            <option value="Agriculture">Agriculture</option>
-                            <option value="Construction">Construction</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.defaultProjectType}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Timezone</label>
-                        {isEditingProfile ? (
-                          <select
-                            value={userProfile.preferences.timezone}
-                            onChange={(e) => setUserProfile(prev => ({
-                              ...prev,
-                              preferences: { ...prev.preferences, timezone: e.target.value }
-                            }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="UTC">UTC</option>
-                            <option value="EST">EST</option>
-                            <option value="PST">PST</option>
-                            <option value="IST">IST</option>
-                            <option value="CET">CET</option>
-                            <option value="JST">JST</option>
-                          </select>
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.timezone}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Date Format</label>
-                        {isEditingProfile ? (
-                          <select
-                            value={userProfile.preferences.dateFormat}
-                            onChange={(e) => setUserProfile(prev => ({
-                              ...prev,
-                              preferences: { ...prev.preferences, dateFormat: e.target.value }
-                            }))}
-                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                          </select>
-                        ) : (
-                          <div className="text-gray-200 bg-gray-800/50 px-3 py-2 rounded-lg">{userProfile.preferences.dateFormat}</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Security */}
-                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <Lock className="w-6 h-6 text-red-400 mr-3" />
-                      <h3 className="text-xl font-semibold text-white">Security</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <button className="w-full text-left bg-gray-800/50 hover:bg-gray-800/70 border border-gray-600/50 rounded-lg px-4 py-3 transition-colors flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Key className="w-5 h-5 text-yellow-400 mr-3" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-300">Change Password</div>
-                            <div className="text-xs text-gray-500">Update your account password</div>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                      </button>
-                      
-                      <button className="w-full text-left bg-gray-800/50 hover:bg-gray-800/70 border border-gray-600/50 rounded-lg px-4 py-3 transition-colors flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Shield className="w-5 h-5 text-green-400 mr-3" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-300">Two-Factor Authentication</div>
-                            <div className="text-xs text-gray-500">Add an extra layer of security</div>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Save Profile */}
-                  {isEditingProfile && (
-                    <div className="flex justify-end space-x-4">
-                      <button
-                        onClick={() => setIsEditingProfile(false)}
-                        className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => setIsEditingProfile(false)}
-                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300 flex items-center space-x-2"
-                      >
-                        <Save className="w-4 h-4" />
-                        <span>Save Profile</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <User className="w-16 h-16 text-green-400 mx-auto mb-4" />
+              <h1 className="text-3xl font-bold mb-4">User Profile</h1>
+              <p className="text-gray-400 mb-8">Manage your account and preferences</p>
+              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
+                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
+                <p className="text-gray-400">User management system being built</p>
               </div>
             </motion.div>
           )}
         </div>
       </div>
-
-      {/* Analysis Page */}
-      {showAnalysisPage && viewingProjectAnalysis && viewingProjectAnalysis.lcaData && (
-        <div className="fixed inset-0 bg-black z-50 overflow-y-auto">
-          <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
-            {/* Header with Back Button */}
-            <div className="bg-black/50 backdrop-blur-sm border-b border-gray-700/30 sticky top-0 z-10">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
-                  <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => {
-                        setShowAnalysisPage(false);
-                        setViewingProjectAnalysis(null);
-                      }}
-                      className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-                    >
-                      <ArrowLeft className="w-5 h-5" />
-                      <span>Back to Projects</span>
-                    </button>
-                    <div className="h-6 w-px bg-gray-600"></div>
-                    <div>
-                      <h1 className="text-xl font-semibold text-white">
-                        {viewingProjectAnalysis.name}
-                      </h1>
-                      <p className="text-sm text-gray-400">Analysis Report</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={() => {
-                        continueProject(viewingProjectAnalysis);
-                        setShowAnalysisPage(false);
-                        setViewingProjectAnalysis(null);
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-medium rounded-lg transition-all duration-300 flex items-center space-x-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>Edit Project</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              {/* Project Info - Compact */}
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-white mb-1">{viewingProjectAnalysis.name}</h2>
-                <p className="text-gray-400 mb-3 text-sm">{viewingProjectAnalysis.description}</p>
-                <div className="flex items-center flex-wrap gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(viewingProjectAnalysis.status)}`}>
-                    {viewingProjectAnalysis.status}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full text-xs ${getTypeColor(viewingProjectAnalysis.type)}`}>
-                    {viewingProjectAnalysis.type}
-                  </span>
-                  <span className="px-2 py-1 rounded-full text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-500/30">
-                    LCA Analysis Complete
-                  </span>
-                </div>
-              </div>
-
-              {/* Stats Overview - Compact */}
-              <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-500/20 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-blue-400 mb-1">
-                    {viewingProjectAnalysis.lcaData.inputs.filter(i => i.completed).length}
-                  </div>
-                  <div className="text-xs text-blue-300">Completed</div>
-                </div>
-                <div className="bg-gradient-to-br from-yellow-900/30 to-yellow-800/20 border border-yellow-500/20 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-yellow-400 mb-1">
-                    {viewingProjectAnalysis.lcaData.inputs.filter(i => i.skipped).length}
-                  </div>
-                  <div className="text-xs text-yellow-300">Skipped</div>
-                </div>
-                <div className="bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/20 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-green-400 mb-1">
-                    {viewingProjectAnalysis.lcaData.graphNodes?.length || 0}
-                  </div>
-                  <div className="text-xs text-green-300">Nodes</div>
-                </div>
-                <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-500/20 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-purple-400 mb-1">
-                    {viewingProjectAnalysis.lcaData.analysisComplete ? '100%' : 
-                     Math.round((viewingProjectAnalysis.lcaData.inputs.filter(i => i.completed).length / 
-                               viewingProjectAnalysis.lcaData.inputs.length) * 100) + '%'}
-                  </div>
-                  <div className="text-xs text-purple-300">Complete</div>
-                </div>
-              </div>
-
-              {/* Main Analysis Graph - Extra Large */}
-              <div className="relative h-[calc(100vh-280px)] min-h-[700px]">
-                {/* LCA Graph - Full Width */}
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl">
-                  <div className="flex items-center justify-between p-4 border-b border-gray-700/30">
-                    <h3 className="text-xl font-semibold text-white">Life Cycle Analysis Graph</h3>
-                    <div className="flex items-center space-x-2 text-sm text-gray-400">
-                      <BarChart3 className="w-4 h-4" />
-                      <span>Click nodes for details</span>
-                    </div>
-                  </div>
-                  <div className="relative h-[calc(100%-60px)] bg-black/50 overflow-hidden">
-                    <ObsidianGraph 
-                      inputs={viewingProjectAnalysis.lcaData.inputs} 
-                      currentStep={viewingProjectAnalysis.lcaData.inputs.length - 1}
-                      selectedNode={analysisSelectedNode}
-                      setSelectedNode={setAnalysisSelectedNode}
-                      autoFocusOnMount={true}
-                      analysisComplete={true}
-                      initialNodes={viewingProjectAnalysis.lcaData.graphNodes}
-                      onNodesChange={() => {}}
-                      onNodeInfoUpdate={setAnalysisCurrentNodeInfo}
-                      isLoadingSavedProject={false}
-                    />
-                  </div>
-                </div>
-
-                {/* Node Information Panel (Sliding from Right) */}
-                <div className={`absolute top-0 right-0 h-full transition-all duration-300 ease-in-out bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-sm border-l border-gray-700/30 overflow-hidden ${
-                  analysisSelectedNode ? 'w-96 opacity-100' : 'w-0 opacity-0'
-                }`}>
-                  {analysisSelectedNode && analysisCurrentNodeInfo && (
-                    <div className="p-6 h-full overflow-y-auto">
-                      {/* Close Button */}
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-white">Process Details</h3>
-                        <button
-                          onClick={() => setAnalysisSelectedNode(null)}
-                          className="p-2 hover:bg-gray-700/50 rounded-lg transition-colors"
-                        >
-                          <X className="w-5 h-5 text-gray-400 hover:text-white" />
-                        </button>
-                      </div>
-
-                      {/* Node Title */}
-                      <div className="mb-6">
-                        <h4 className="text-xl font-bold text-white mb-2">
-                          {analysisSelectedNode.label}
-                        </h4>
-                        <p className="text-gray-400 text-sm leading-relaxed">
-                          {analysisCurrentNodeInfo.description}
-                        </p>
-                      </div>
-
-                      {/* Resources Section */}
-                      {analysisCurrentNodeInfo.resourcesDepletedOrUsed && analysisCurrentNodeInfo.resourcesDepletedOrUsed.length > 0 && (
-                        <div className="mb-6">
-                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
-                            <Circle className="w-4 h-4 mr-2 text-blue-400" />
-                            Resources
-                          </h5>
-                          <div className="space-y-3">
-                            {analysisCurrentNodeInfo.resourcesDepletedOrUsed.map((resource, idx) => (
-                              <div key={idx} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium text-gray-300 flex items-center">
-                                    <span className="mr-2">{resource.icon}</span>
-                                    {resource.resource}
-                                  </span>
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    resource.impact === 'high' ? 'bg-red-900/30 text-red-400' :
-                                    resource.impact === 'medium' ? 'bg-yellow-900/30 text-yellow-400' :
-                                    'bg-green-900/30 text-green-400'
-                                  }`}>
-                                    {resource.impact}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-400">{resource.amount}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Environmental Impact */}
-                      {analysisCurrentNodeInfo.environmentalImpact && analysisCurrentNodeInfo.environmentalImpact.length > 0 && (
-                        <div className="mb-6">
-                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
-                            <Activity className="w-4 h-4 mr-2 text-green-400" />
-                            Environmental Impact
-                          </h5>
-                          <div className="space-y-3">
-                            {analysisCurrentNodeInfo.environmentalImpact.map((impact, idx) => (
-                              <div key={idx} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium text-gray-300">{impact.category}</span>
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    impact.level === 'high' ? 'bg-red-900/30 text-red-400' :
-                                    impact.level === 'medium' ? 'bg-yellow-900/30 text-yellow-400' :
-                                    'bg-green-900/30 text-green-400'
-                                  }`}>
-                                    {impact.level}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-400">{impact.description}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Recommendations */}
-                      {analysisCurrentNodeInfo.recommendations && analysisCurrentNodeInfo.recommendations.length > 0 && (
-                        <div>
-                          <h5 className="text-md font-semibold text-gray-200 mb-3 flex items-center">
-                            <Info className="w-4 h-4 mr-2 text-purple-400" />
-                            Recommendations
-                          </h5>
-                          <div className="space-y-2">
-                            {analysisCurrentNodeInfo.recommendations.map((rec, idx) => (
-                              <div key={idx} className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3">
-                                <div className="text-sm text-purple-200">{rec}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create/Edit Project Modal */}
       {showCreateModal && (
@@ -4693,6 +3581,488 @@ export default function DemoPage() {
           <CheckCircle className="w-5 h-5" />
           <span className="font-medium">Project saved successfully!</span>
         </motion.div>
+      )}
+
+      {/* Dedicated Analysis View */}
+      {showAnalysisView && analysisProject && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col">
+          {/* Header with Back Button */}
+          <div className="bg-gradient-to-r from-gray-900/95 to-black/95 backdrop-blur-xl border-b border-gray-700/50 p-4 flex-shrink-0 h-20">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    setShowAnalysisView(false);
+                    setAnalysisProject(null);
+                  }}
+                  className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors p-2 hover:bg-gray-800/50 rounded-lg"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  <span>Back to Projects</span>
+                </button>
+                <div className="h-6 w-px bg-gray-600"></div>
+                <div>
+                  <h1 className="text-xl font-bold text-white">{analysisProject.name}</h1>
+                  <p className="text-sm text-gray-400">{analysisProject.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="px-3 py-1 rounded-full text-xs bg-green-900/30 text-green-400 border border-green-500/30">
+                  {analysisProject.status}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs bg-blue-900/30 text-blue-400 border border-blue-500/30">
+                  {analysisProject.type}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Analysis Content */}
+          <div className="flex-1 flex overflow-hidden h-[calc(100vh-80px)]">
+            <div className="flex w-full h-full">
+              {/* Project Info Panel */}
+              <div className="w-80 flex-shrink-0 bg-gray-900/30 border-r border-gray-700/30 p-4 overflow-y-auto">
+                {/* Project Details */}
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-4 mb-4">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                    <Info className="w-5 h-5 mr-2 text-blue-400" />
+                    Project Details
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-400">Functional Unit:</span>
+                      <div className="text-white font-medium">{analysisProject.functionalUnit}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Created:</span>
+                      <div className="text-white">{analysisProject.createdDate}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Last Modified:</span>
+                      <div className="text-white">{analysisProject.lastModified}</div>
+                    </div>
+                    {analysisProject.lcaData && (
+                      <div>
+                        <span className="text-gray-400">Completion:</span>
+                        <div className="text-white">
+                          {analysisProject.lcaData.inputs.filter(input => input.completed).length}/
+                          {analysisProject.lcaData.inputs.length} inputs completed
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Input Summary */}
+                {analysisProject.lcaData && (
+                  <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                      <FileText className="w-5 h-5 mr-2 text-green-400" />
+                      Input Summary
+                    </h3>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {analysisProject.lcaData.inputs.map((input) => (
+                        <div key={input.id} className="p-2 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-300">{input.label}</span>
+                            <div className="flex items-center space-x-1">
+                              {input.completed ? (
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                              ) : input.skipped ? (
+                                <Circle className="w-3 h-3 text-yellow-400" />
+                              ) : (
+                                <Circle className="w-3 h-3 text-gray-500" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-400 truncate">
+                            {input.value || (input.skipped ? 'Skipped' : 'Not completed')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* LCA Graph */}
+              <div className={`transition-all duration-300 ease-in-out flex flex-col p-4 ${
+                analysisSelectedNode ? 'w-[calc(100%-384px)]' : 'w-full'
+              }`}>
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-4 flex-1 flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-white flex items-center">
+                      <BarChart3 className="w-5 h-5 mr-2 text-purple-400" />
+                      Life Cycle Assessment Graph
+                    </h3>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-400">
+                        {analysisProject.lcaData?.graphNodes.length || 0} nodes
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Graph Container */}
+                  <div className="relative flex-1 min-h-0 bg-black/20 rounded-lg border border-gray-600/30 overflow-hidden">
+                    {analysisProject.lcaData?.graphNodes && analysisProject.lcaData.graphNodes.length > 0 ? (
+                      <ObsidianGraph
+                        inputs={analysisProject.lcaData.inputs}
+                        currentStep={0}
+                        selectedNode={analysisSelectedNode ? analysisProject.lcaData.graphNodes.find(node => node.id === analysisSelectedNode) || null : null}
+                        setSelectedNode={(node) => setAnalysisSelectedNode(node?.id || null)}
+                        autoFocusOnMount={true}
+                        analysisComplete={true}
+                        initialNodes={analysisProject.lcaData.graphNodes}
+                        onNodesChange={() => {}} // Read-only view
+                        onNodeInfoUpdate={() => {}} // Read-only view
+                        isLoadingSavedProject={false}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <BarChart3 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                          <h4 className="text-lg font-semibold text-gray-400 mb-2">No Graph Data</h4>
+                          <p className="text-gray-500">This analysis doesn&apos;t contain graph data</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel - Node Information Card (Sliding) */}
+              <div className={`transition-all duration-300 ease-in-out bg-gradient-to-br from-gray-900/50 to-gray-800/30 border-l border-gray-700/30 overflow-hidden ${
+                analysisSelectedNode ? 'w-96 opacity-100' : 'w-0 opacity-0'
+              }`}>
+                {analysisSelectedNode && (() => {
+                  const getNodeInfo = (nodeId: string): NodeInfo | null => {
+                    if (!analysisProject.lcaData?.inputs) return null;
+                    
+                    const getCurrentValue = (inputId: string): string => {
+                      const input = analysisProject.lcaData?.inputs.find(inp => inp.id === inputId);
+                      return input?.value || '';
+                    };
+
+                    // Find the node object from the saved graph nodes
+                    const node = analysisProject.lcaData.graphNodes?.find(n => n.id === nodeId);
+                    if (!node) return null;
+
+                    const nodeInfo: NodeInfo = {
+                      title: node.label,
+                      description: '',
+                      resourcesDepletedOrUsed: [],
+                      environmentalImpact: [],
+                      recommendations: []
+                    };
+
+                    switch (node.id) {
+                      case 'product':
+                        nodeInfo.description = 'The product definition stage sets the foundation for your entire LCA. This determines the functional unit and system boundaries.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Administrative Energy', amount: 'Minimal', impact: 'low', icon: '⚡' },
+                          { resource: 'Digital Storage', amount: '~1 MB', impact: 'low', icon: '💾' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Carbon Footprint', level: 'low', description: 'Minimal emissions from digital activities' }
+                        ];
+                        nodeInfo.recommendations = ['Define clear functional units', 'Set appropriate system boundaries'];
+                        break;
+
+                      case 'location':
+                        nodeInfo.description = 'Geographic location significantly affects energy grid composition, transportation distances, and regulatory frameworks.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Land Use', amount: 'Varies by facility size', impact: 'medium', icon: '🏭' },
+                          { resource: 'Local Infrastructure', amount: 'Shared usage', impact: 'low', icon: '🛣️' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Carbon Intensity', level: 'high', description: 'Varies by local energy grid (coal vs renewable)' },
+                          { category: 'Transportation Emissions', level: 'medium', description: 'Distance to suppliers and markets' }
+                        ];
+                        nodeInfo.recommendations = ['Choose locations with clean energy grids', 'Minimize transportation distances'];
+                        break;
+
+                      case 'energy':
+                        nodeInfo.description = 'Energy source selection is critical for environmental impact. Renewable sources dramatically reduce lifecycle emissions.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Fossil Fuels', amount: 'High (if non-renewable)', impact: 'high', icon: '🛢️' },
+                          { resource: 'Renewable Resources', amount: 'Sustainable (if renewable)', impact: 'low', icon: '🌱' },
+                          { resource: 'Grid Infrastructure', amount: 'Shared usage', impact: 'medium', icon: '🔌' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'GHG Emissions', level: 'high', description: 'Major contributor to carbon footprint' },
+                          { category: 'Air Quality', level: 'high', description: 'Fossil fuels create pollutants' },
+                          { category: 'Resource Depletion', level: 'high', description: 'Non-renewable energy sources' }
+                        ];
+                        nodeInfo.recommendations = ['Prioritize renewable energy sources', 'Implement energy efficiency measures', 'Consider on-site solar/wind'];
+                        break;
+
+                      case 'electricity':
+                        nodeInfo.description = 'Electricity consumption directly correlates with environmental impact based on the local energy grid composition.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Coal/Gas', amount: `${getCurrentValue('electricity') || '0'} kWh × grid factor`, impact: 'high', icon: '⚡' },
+                          { resource: 'Water (cooling)', amount: '~2-3L per kWh', impact: 'medium', icon: '💧' },
+                          { resource: 'Grid Capacity', amount: 'Shared infrastructure', impact: 'low', icon: '🔌' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Carbon Emissions', level: 'high', description: `${getCurrentValue('electricity') || '0'} kWh generates significant CO₂` },
+                          { category: 'Water Consumption', level: 'medium', description: 'Thermoelectric power plants require cooling water' }
+                        ];
+                        nodeInfo.recommendations = ['Reduce electricity consumption', 'Use energy-efficient equipment', 'Source from renewable grids'];
+                        break;
+
+                      case 'scrapRate':
+                        nodeInfo.description = 'Material waste during production represents lost resources and additional environmental burden.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Raw Materials', amount: `${getCurrentValue('scrapRate') || '0'}% waste`, impact: 'medium', icon: '🔨' },
+                          { resource: 'Processing Energy', amount: 'Wasted on scrapped material', impact: 'medium', icon: '⚡' },
+                          { resource: 'Landfill Space', amount: 'If not recycled', impact: 'medium', icon: '🗑️' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Resource Efficiency', level: 'medium', description: 'Higher scrap rates mean more resource consumption' },
+                          { category: 'Waste Generation', level: 'medium', description: 'Increases overall material throughput' }
+                        ];
+                        nodeInfo.recommendations = ['Optimize manufacturing processes', 'Implement quality control', 'Design for manufacturability'];
+                        break;
+
+                      case 'scrapFate':
+                        nodeInfo.description = 'The destination of scrap material significantly affects the overall environmental impact of the production process.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Recycling Energy', amount: 'If recycled', impact: 'low', icon: '♻️' },
+                          { resource: 'Landfill Space', amount: 'If disposed', impact: 'high', icon: '🗑️' },
+                          { resource: 'Transportation Fuel', amount: 'To recycling/disposal', impact: 'low', icon: '🚛' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Circular Economy', level: 'high', description: 'Recycling reduces virgin material demand' },
+                          { category: 'Waste Impact', level: 'high', description: 'Landfilling creates long-term environmental burden' }
+                        ];
+                        nodeInfo.recommendations = ['Maximize recycling rates', 'Partner with certified recyclers', 'Design for recyclability'];
+                        break;
+
+                      case 'waterUsage':
+                      case 'water':
+                        nodeInfo.description = 'Water consumption affects local water resources and requires treatment, impacting aquatic ecosystems.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Freshwater', amount: `${getCurrentValue('waterUsage') || getCurrentValue('water') || '0'} L per unit`, impact: 'high', icon: '💧' },
+                          { resource: 'Treatment Chemicals', amount: 'For water purification', impact: 'medium', icon: '🧪' },
+                          { resource: 'Energy (pumping/treatment)', amount: '~3-4 kWh per 1000L', impact: 'medium', icon: '⚡' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Water Scarcity', level: 'high', description: 'Depletes local freshwater resources' },
+                          { category: 'Aquatic Ecosystems', level: 'medium', description: 'Affects water availability for ecosystems' },
+                          { category: 'Treatment Impact', level: 'medium', description: 'Wastewater requires energy-intensive treatment' }
+                        ];
+                        nodeInfo.recommendations = ['Implement water recycling', 'Use water-efficient processes', 'Consider rainwater harvesting'];
+                        break;
+
+                      case 'transport':
+                      case 'transportation':
+                        nodeInfo.description = 'Transportation mode significantly affects fuel consumption, emissions, and delivery timeframes.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Fossil Fuels', amount: 'Varies by mode and distance', impact: 'high', icon: '⛽' },
+                          { resource: 'Vehicle Infrastructure', amount: 'Shared transportation network', impact: 'medium', icon: '🛣️' },
+                          { resource: 'Packaging Materials', amount: 'Protection during transport', impact: 'low', icon: '📦' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'GHG Emissions', level: 'high', description: 'Major source of scope 3 emissions' },
+                          { category: 'Air Pollution', level: 'high', description: 'NOx, particulates from combustion' },
+                          { category: 'Noise Pollution', level: 'medium', description: 'Traffic noise in urban areas' }
+                        ];
+                        nodeInfo.recommendations = ['Choose efficient transportation modes', 'Optimize logistics and routing', 'Consider rail/sea over road/air'];
+                        break;
+
+                      case 'packaging':
+                        nodeInfo.description = 'Packaging materials protect products during transport but add to environmental burden through material use and disposal.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Packaging Materials', amount: `${getCurrentValue('packaging')} based packaging`, impact: 'medium', icon: '📦' },
+                          { resource: 'Manufacturing Energy', amount: 'For packaging production', impact: 'medium', icon: '⚡' },
+                          { resource: 'Transport Fuel', amount: 'Additional weight/volume', impact: 'low', icon: '🚛' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Material Consumption', level: 'medium', description: 'Additional raw materials required' },
+                          { category: 'Waste Generation', level: 'medium', description: 'Packaging becomes waste after use' },
+                          { category: 'Recyclability', level: 'medium', description: 'Impact depends on material choice' }
+                        ];
+                        nodeInfo.recommendations = ['Use minimal packaging', 'Choose recyclable materials', 'Optimize packaging design'];
+                        break;
+
+                      case 'endOfLife':
+                        const endOfLifeValue = getCurrentValue('endOfLife');
+                        nodeInfo.description = 'End-of-life treatment determines whether materials re-enter the economy or become waste, affecting long-term sustainability.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Recycling Infrastructure', amount: 'If recyclable design', impact: 'low', icon: '♻️' },
+                          { resource: 'Landfill Space', amount: 'If not recyclable', impact: 'high', icon: '🗑️' },
+                          { resource: 'Incineration Energy', amount: 'Energy recovery possible', impact: 'medium', icon: '🔥' }
+                        ];
+                        nodeInfo.environmentalImpact = endOfLifeValue === 'Recycling' ? [
+                          { category: 'Circular Economy', level: 'low', description: 'Materials re-enter production cycle' },
+                          { category: 'Resource Recovery', level: 'low', description: 'Reduces need for virgin materials' },
+                          { category: 'Energy Savings', level: 'low', description: 'Recycling typically uses less energy than production' }
+                        ] : endOfLifeValue === 'Landfill' ? [
+                          { category: 'Long-term Pollution', level: 'high', description: 'Materials may leach toxins over time' },
+                          { category: 'Land Use', level: 'high', description: 'Permanent allocation of land for waste' },
+                          { category: 'Resource Loss', level: 'high', description: 'Materials permanently removed from economy' }
+                        ] : [
+                          { category: 'Air Emissions', level: 'medium', description: 'Combustion creates emissions' },
+                          { category: 'Energy Recovery', level: 'medium', description: 'Can generate electricity from waste' },
+                          { category: 'Ash Disposal', level: 'medium', description: 'Remaining ash requires management' }
+                        ];
+                        nodeInfo.recommendations = endOfLifeValue === 'Recycling' ? [
+                          'Design for disassembly',
+                          'Use recyclable materials',
+                          'Establish take-back programs',
+                          'Partner with certified recyclers'
+                        ] : [
+                          'Prioritize recycling over disposal',
+                          'Design for disassembly',
+                          'Use recyclable materials',
+                          'Implement take-back programs'
+                        ];
+                        break;
+
+                      default:
+                        nodeInfo.description = 'This process step contributes to the overall environmental impact of your product lifecycle.';
+                        nodeInfo.resourcesDepletedOrUsed = [
+                          { resource: 'Various Resources', amount: 'Context dependent', impact: 'medium', icon: '🔄' }
+                        ];
+                        nodeInfo.environmentalImpact = [
+                          { category: 'Environmental Impact', level: 'medium', description: 'Specific impacts depend on process details' }
+                        ];
+                        nodeInfo.recommendations = ['Define specific process parameters', 'Quantify resource usage'];
+                    }
+
+                    return nodeInfo;
+                  };
+
+                  const currentNodeInfo = getNodeInfo(analysisSelectedNode);
+
+                  return (
+                    <div className="h-full flex flex-col overflow-hidden">
+                      {/* Fixed Header */}
+                      <div className="flex-shrink-0 p-6 border-b border-gray-700/30">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-xl font-semibold text-white">Node Information</h3>
+                          <button
+                            onClick={() => setAnalysisSelectedNode(null)}
+                            className="p-2 hover:bg-gray-700/50 rounded-lg transition-colors"
+                          >
+                            <svg className="w-5 h-5 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Scrollable Content */}
+                      <div className="flex-1 overflow-y-auto p-6">
+                        <motion.div
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="space-y-6"
+                        >
+                          {currentNodeInfo && (
+                            <>
+                              {/* Node Header */}
+                              <div className="pb-4 border-b border-gray-700/50">
+                                <h3 className="text-2xl font-bold text-white mb-3">{currentNodeInfo.title}</h3>
+                                <p className="text-gray-300 text-sm leading-relaxed">{currentNodeInfo.description}</p>
+                              </div>
+
+                              {/* Resources Depleted/Used */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-purple-300 flex items-center gap-2">
+                                  Resources Used/Depleted
+                                </h4>
+                                <div className="space-y-3">
+                                  {currentNodeInfo.resourcesDepletedOrUsed.map((resource: NodeResource, index: number) => (
+                                    <div 
+                                      key={index} 
+                                      className={`p-4 rounded-xl border ${
+                                        resource.impact === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                        resource.impact === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                        'border-green-500/30 bg-green-500/10'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-lg">{resource.icon}</span>
+                                          <span className="font-medium text-white">{resource.resource}</span>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                          resource.impact === 'high' ? 'bg-red-500/20 text-red-300' :
+                                          resource.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          'bg-green-500/20 text-green-300'
+                                        }`}>
+                                          {resource.impact}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-300 text-sm">{resource.amount}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Environmental Impact */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-blue-300 flex items-center gap-2">
+                                  <span>🌍</span> Environmental Impact
+                                </h4>
+                                <div className="space-y-3">
+                                  {currentNodeInfo.environmentalImpact.map((impact: NodeImpact, index: number) => (
+                                    <div 
+                                      key={index} 
+                                      className={`p-4 rounded-xl border ${
+                                        impact.level === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                        impact.level === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                        'border-green-500/30 bg-green-500/10'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium text-white">{impact.category}</span>
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                          impact.level === 'high' ? 'bg-red-500/20 text-red-300' :
+                                          impact.level === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          'bg-green-500/20 text-green-300'
+                                        }`}>
+                                          {impact.level}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-300 text-sm">{impact.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Sustainability Recommendations */}
+                              <div className="space-y-4">
+                                <h4 className="text-lg font-semibold text-green-300 flex items-center gap-2">
+                                  <span>💡</span> Sustainability Recommendations
+                                </h4>
+                                <div className="space-y-2">
+                                  {currentNodeInfo.recommendations.map((recommendation: string, index: number) => (
+                                    <div 
+                                      key={index} 
+                                      className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-start gap-3"
+                                    >
+                                      <div className="flex-shrink-0 w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center mt-0.5">
+                                        <span className="text-green-400 text-xs font-bold">{index + 1}</span>
+                                      </div>
+                                      <p className="text-gray-300 text-sm leading-relaxed">{recommendation}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </motion.div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
