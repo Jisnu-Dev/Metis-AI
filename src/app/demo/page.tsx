@@ -3697,22 +3697,22 @@ export default function DemoPage() {
                     </h3>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm text-gray-400">
-                        {analysisProject.lcaData?.graphNodes.length || 0} nodes
+                        {analysisProject.lcaData?.inputs?.filter(input => input.completed).length || 0} completed nodes
                       </span>
                     </div>
                   </div>
                   
                   {/* Graph Container */}
                   <div className="relative flex-1 min-h-0 bg-black/20 rounded-lg border border-gray-600/30 overflow-hidden">
-                    {analysisProject.lcaData?.graphNodes && analysisProject.lcaData.graphNodes.length > 0 ? (
+                    {analysisProject.lcaData?.inputs && analysisProject.lcaData.inputs.length > 0 ? (
                       <ObsidianGraph
                         inputs={analysisProject.lcaData.inputs}
                         currentStep={0}
-                        selectedNode={analysisSelectedNode ? analysisProject.lcaData.graphNodes.find(node => node.id === analysisSelectedNode) || null : null}
+                        selectedNode={analysisSelectedNode ? analysisProject.lcaData.graphNodes?.find(node => node.id === analysisSelectedNode) || null : null}
                         setSelectedNode={(node) => setAnalysisSelectedNode(node?.id || null)}
                         autoFocusOnMount={true}
                         analysisComplete={true}
-                        initialNodes={analysisProject.lcaData.graphNodes}
+                        initialNodes={undefined} // Let ObsidianGraph regenerate nodes from inputs
                         onNodesChange={() => {}} // Read-only view
                         onNodeInfoUpdate={() => {}} // Read-only view
                         isLoadingSavedProject={false}
