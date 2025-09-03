@@ -2379,6 +2379,9 @@ export default function DemoPage() {
   // Open a saved completed project
   const openSavedProject = (project: Project) => {
     if (project.lcaData) {
+      // Set as current project so back button can reload state properly
+      setCurrentProject(project);
+      
       // Set the analysis project and show the dedicated analysis view
       setAnalysisProject(project);
       setShowAnalysisView(true);
@@ -3592,6 +3595,26 @@ export default function DemoPage() {
               <div className="flex items-center space-x-4">
                 <button
                   onClick={() => {
+                    // If returning to the same project, reload its state into the modeler
+                    if (analysisProject && currentProject?.id === analysisProject.id && analysisProject.lcaData) {
+                      // Reload the project data into the modeler state
+                      setIsUserGraphUpdate(false);
+                      setIsLoadingSavedProject(true);
+                      
+                      setInputs(analysisProject.lcaData.inputs);
+                      setGraphNodes(analysisProject.lcaData.graphNodes);
+                      setAnalysisComplete(analysisProject.lcaData.analysisComplete);
+                      
+                      // Set current step to the first incomplete input
+                      const firstIncompleteIndex = analysisProject.lcaData.inputs.findIndex(input => !input.completed && !input.skipped);
+                      setCurrentStep(firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0);
+                      
+                      // Reset the loading flag after a short delay
+                      setTimeout(() => {
+                        setIsLoadingSavedProject(false);
+                      }, 100);
+                    }
+                    
                     setShowAnalysisView(false);
                     setAnalysisProject(null);
                   }}
