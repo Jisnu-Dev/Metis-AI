@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info, Download, Eye, Filter, Search, Bell, Shield, Palette, Globe, Database, Save, RotateCcw, Moon, Sun, Monitor, Lock, AlertCircle, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -1747,6 +1747,1042 @@ function ObsidianGraph({
   );
 }
 
+// Reports and Exports Component
+function ReportsAndExports({ 
+  projects, 
+  currentProject 
+}: { 
+  projects: Project[];
+  currentProject: Project | null;
+}) {
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [reportType, setReportType] = useState<'summary' | 'detailed' | 'comparative'>('summary');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'active'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Filter projects based on status and search term
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || 
+                         (filterStatus === 'completed' && project.status === 'Completed') ||
+                         (filterStatus === 'active' && project.status === 'Active');
+    return matchesSearch && matchesFilter;
+  });
+
+  // Get completed projects with LCA data
+  const completedProjects = filteredProjects.filter(p => p.status === 'Completed' && p.lcaData);
+
+  // Toggle project selection
+  const toggleProjectSelection = (projectId: string) => {
+    setSelectedProjects(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  // Select all visible projects
+  const selectAllProjects = () => {
+    const completedProjectIds = completedProjects.map(p => p.id);
+    setSelectedProjects(completedProjectIds);
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedProjects([]);
+  };
+
+  // Generate CSV data for export
+  const generateCSVData = (projects: Project[]) => {
+    const csvData = [];
+    
+    // Add header row
+    csvData.push([
+      'Project Name',
+      'Type',
+      'Functional Unit',
+      'Status',
+      'Created Date',
+      'Last Modified',
+      'Completion Rate',
+      'Factory Location',
+      'Energy Source',
+      'Transportation',
+      'Packaging',
+      'End of Life Treatment'
+    ]);
+
+    // Add project data
+    projects.forEach(project => {
+      if (project.lcaData) {
+        const inputs = project.lcaData.inputs;
+        const completedCount = inputs.filter(input => input.completed).length;
+        const completionRate = `${Math.round((completedCount / inputs.length) * 100)}%`;
+        
+        csvData.push([
+          project.name,
+          project.type,
+          project.functionalUnit,
+          project.status,
+          project.createdDate,
+          project.lastModified,
+          completionRate,
+          inputs.find(i => i.id === 'location')?.value || 'N/A',
+          inputs.find(i => i.id === 'energy')?.value || 'N/A',
+          inputs.find(i => i.id === 'transportation')?.value || 'N/A',
+          inputs.find(i => i.id === 'packaging')?.value || 'N/A',
+          inputs.find(i => i.id === 'endOfLife')?.value || 'N/A'
+        ]);
+      }
+    });
+
+    return csvData;
+  };
+
+  // Export to CSV
+  const exportToCSV = async () => {
+    if (selectedProjects.length === 0) return;
+    
+    setIsGenerating(true);
+    
+    try {
+      // Dynamic import to avoid SSR issues
+      const Papa = (await import('papaparse')).default;
+      
+      const selectedProjectData = projects.filter(p => selectedProjects.includes(p.id));
+      const csvData = generateCSVData(selectedProjectData);
+      
+      const csv = Papa.unparse(csvData);
+      
+      // Create and download file
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `lca-report-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+    }
+    
+    setIsGenerating(false);
+  };
+
+  // Export to PDF
+  const exportToPDF = async () => {
+    if (selectedProjects.length === 0) return;
+    
+    setIsGenerating(true);
+    
+    try {
+      // Dynamic imports to avoid SSR issues
+      const jsPDF = (await import('jspdf')).default;
+      const html2canvas = (await import('html2canvas')).default;
+      
+      const selectedProjectData = projects.filter(p => selectedProjects.includes(p.id));
+      
+      // Create PDF document
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
+
+      // Add title
+      pdf.setFontSize(20);
+      pdf.setTextColor(51, 51, 51);
+      pdf.text('MetisAI - LCA Analysis Report', margin, yPosition);
+      yPosition += 15;
+
+      // Add generation date
+      pdf.setFontSize(12);
+      pdf.setTextColor(102, 102, 102);
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, margin, yPosition);
+      yPosition += 10;
+
+      // Add summary
+      pdf.setFontSize(14);
+      pdf.setTextColor(51, 51, 51);
+      pdf.text(`Report Summary: ${selectedProjectData.length} Projects`, margin, yPosition);
+      yPosition += 20;
+
+      // Add project details
+      selectedProjectData.forEach((project, index) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - 60) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        // Project header
+        pdf.setFontSize(16);
+        pdf.setTextColor(76, 29, 149); // Purple color
+        pdf.text(`${index + 1}. ${project.name}`, margin, yPosition);
+        yPosition += 8;
+
+        // Project details
+        pdf.setFontSize(11);
+        pdf.setTextColor(51, 51, 51);
+        
+        const details = [
+          `Type: ${project.type}`,
+          `Functional Unit: ${project.functionalUnit}`,
+          `Status: ${project.status}`,
+          `Created: ${project.createdDate}`,
+          `Last Modified: ${project.lastModified}`
+        ];
+
+        details.forEach(detail => {
+          pdf.text(detail, margin + 5, yPosition);
+          yPosition += 6;
+        });
+
+        // LCA Data if available
+        if (project.lcaData) {
+          yPosition += 5;
+          pdf.setFontSize(12);
+          pdf.setTextColor(76, 29, 149);
+          pdf.text('LCA Analysis Data:', margin + 5, yPosition);
+          yPosition += 8;
+
+          pdf.setFontSize(10);
+          pdf.setTextColor(51, 51, 51);
+
+          const completedInputs = project.lcaData.inputs.filter(input => input.completed);
+          const completionRate = Math.round((completedInputs.length / project.lcaData.inputs.length) * 100);
+          
+          pdf.text(`Completion Rate: ${completionRate}%`, margin + 10, yPosition);
+          yPosition += 6;
+
+          // Add input details
+          project.lcaData.inputs.forEach(input => {
+            if (input.completed && input.value) {
+              const text = `${input.label}: ${input.value}`;
+              pdf.text(text, margin + 10, yPosition);
+              yPosition += 5;
+            }
+          });
+        }
+
+        yPosition += 10; // Space between projects
+      });
+
+      // Add footer
+      const footerY = pageHeight - 15;
+      pdf.setFontSize(10);
+      pdf.setTextColor(102, 102, 102);
+      pdf.text('Generated by MetisAI - AI-Powered Life Cycle Assessment Platform', margin, footerY);
+
+      // Save PDF
+      pdf.save(`lca-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    }
+    
+    setIsGenerating(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="p-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center">
+            <FileText className="w-8 h-8 mr-3 text-blue-400" />
+            Reports & Exports
+          </h1>
+          <p className="text-gray-400">Generate comprehensive reports and export your LCA analysis data</p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+
+          {/* Filter */}
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'completed' | 'active')}
+              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50 appearance-none"
+            >
+              <option value="all">All Projects</option>
+              <option value="completed">Completed Only</option>
+              <option value="active">Active Only</option>
+            </select>
+          </div>
+
+          {/* Report Type */}
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value as 'summary' | 'detailed' | 'comparative')}
+            className="w-full px-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50 appearance-none"
+          >
+            <option value="summary">Summary Report</option>
+            <option value="detailed">Detailed Report</option>
+            <option value="comparative">Comparative Analysis</option>
+          </select>
+
+          {/* Selection Controls */}
+          <div className="flex space-x-2">
+            <button
+              onClick={selectAllProjects}
+              className="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 font-medium py-2 px-3 rounded-lg transition-all duration-300 text-sm"
+            >
+              Select All
+            </button>
+            <button
+              onClick={clearSelection}
+              className="flex-1 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 hover:text-gray-200 font-medium py-2 px-3 rounded-lg transition-all duration-300 text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex flex-wrap gap-4">
+          <button
+            onClick={exportToPDF}
+            disabled={selectedProjects.length === 0 || isGenerating}
+            className="flex items-center space-x-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isGenerating ? 'Generating...' : 'Export PDF'}</span>
+          </button>
+
+          <button
+            onClick={exportToCSV}
+            disabled={selectedProjects.length === 0 || isGenerating}
+            className="flex items-center space-x-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isGenerating ? 'Generating...' : 'Export CSV'}</span>
+          </button>
+
+          <div className="text-sm text-gray-400 flex items-center">
+            {selectedProjects.length > 0 && (
+              <span>{selectedProjects.length} project{selectedProjects.length !== 1 ? 's' : ''} selected</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Projects List */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-white">Available Projects ({completedProjects.length})</h2>
+        
+        {completedProjects.length === 0 ? (
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8 text-center">
+            <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Completed Projects</h3>
+            <p className="text-gray-500">Complete some LCA analyses to generate reports</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {completedProjects.map((project) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`bg-gradient-to-br from-gray-900/50 to-gray-800/30 border rounded-xl p-4 cursor-pointer transition-all duration-300 ${
+                  selectedProjects.includes(project.id)
+                    ? 'border-purple-500/50 bg-purple-900/20'
+                    : 'border-gray-700/30 hover:border-gray-600/50'
+                }`}
+                onClick={() => toggleProjectSelection(project.id)}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-white mb-1">{project.name}</h3>
+                    <p className="text-sm text-gray-400 line-clamp-2">{project.description}</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    selectedProjects.includes(project.id)
+                      ? 'bg-purple-600 border-purple-600'
+                      : 'border-gray-500'
+                  }`}>
+                    {selectedProjects.includes(project.id) && (
+                      <CheckCircle className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Type:</span>
+                    <span className="text-white">{project.type}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="px-2 py-1 rounded text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-500/30">
+                      {project.status}
+                    </span>
+                  </div>
+                  {project.lcaData && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-400">Completion:</span>
+                      <span className="text-white">
+                        {Math.round((project.lcaData.inputs.filter(input => input.completed).length / project.lcaData.inputs.length) * 100)}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Modified:</span>
+                    <span className="text-white">{project.lastModified}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Report Preview */}
+      {selectedProjects.length > 0 && (
+        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <Eye className="w-5 h-5 mr-2 text-blue-400" />
+            Report Preview
+          </h3>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="bg-blue-900/20 border border-blue-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-blue-400">{selectedProjects.length}</div>
+                <div className="text-sm text-gray-400">Projects</div>
+              </div>
+              <div className="bg-green-900/20 border border-green-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-green-400">
+                  {projects.filter(p => selectedProjects.includes(p.id) && p.status === 'Completed').length}
+                </div>
+                <div className="text-sm text-gray-400">Completed</div>
+              </div>
+              <div className="bg-purple-900/20 border border-purple-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-purple-400">
+                  {projects.filter(p => selectedProjects.includes(p.id)).reduce((acc, p) => {
+                    return acc + new Set(p.type ? [p.type] : []).size;
+                  }, 0)}
+                </div>
+                <div className="text-sm text-gray-400">Types</div>
+              </div>
+              <div className="bg-orange-900/20 border border-orange-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-orange-400">
+                  {Math.round(
+                    projects
+                      .filter(p => selectedProjects.includes(p.id) && p.lcaData)
+                      .reduce((acc, p) => {
+                        const completionRate = (p.lcaData!.inputs.filter(input => input.completed).length / p.lcaData!.inputs.length) * 100;
+                        return acc + completionRate;
+                      }, 0) / selectedProjects.length || 0
+                  )}%
+                </div>
+                <div className="text-sm text-gray-400">Avg Completion</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// Settings Component
+function SettingsPanel() {
+  // Settings state
+  const [settings, setSettings] = useState({
+    // General Settings
+    theme: 'dark' as 'light' | 'dark' | 'auto',
+    language: 'en',
+    timezone: 'UTC',
+    
+    // Notifications
+    emailNotifications: true,
+    pushNotifications: true,
+    projectUpdates: true,
+    systemAlerts: true,
+    
+    // Privacy & Security
+    dataSharing: false,
+    analyticsTracking: true,
+    twoFactorAuth: false,
+    sessionTimeout: 30,
+    
+    // LCA Preferences
+    defaultUnits: 'metric',
+    autoSave: true,
+    autoSaveInterval: 5,
+    defaultProjectType: 'Steel',
+    showAdvancedOptions: false,
+    
+    // Data & Export
+    exportFormat: 'pdf',
+    includeGraphs: true,
+    compressionLevel: 'medium',
+    backupFrequency: 'weekly',
+    
+    // Performance
+    graphQuality: 'high',
+    animationsEnabled: true,
+    preloadData: true,
+    cacheSize: 100
+  });
+
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [activeSection, setActiveSection] = useState('general');
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+
+  // Handle setting changes
+  const updateSetting = (key: string, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  // Save settings
+  const saveSettings = () => {
+    // In a real app, this would save to backend/localStorage
+    localStorage.setItem('metisai-settings', JSON.stringify(settings));
+    setHasUnsavedChanges(false);
+    setShowSaveConfirmation(true);
+    setTimeout(() => setShowSaveConfirmation(false), 3000);
+  };
+
+  // Reset to defaults
+  const resetToDefaults = () => {
+    const defaultSettings = {
+      theme: 'dark' as 'light' | 'dark' | 'auto',
+      language: 'en',
+      timezone: 'UTC',
+      emailNotifications: true,
+      pushNotifications: true,
+      projectUpdates: true,
+      systemAlerts: true,
+      dataSharing: false,
+      analyticsTracking: true,
+      twoFactorAuth: false,
+      sessionTimeout: 30,
+      defaultUnits: 'metric',
+      autoSave: true,
+      autoSaveInterval: 5,
+      defaultProjectType: 'Steel',
+      showAdvancedOptions: false,
+      exportFormat: 'pdf',
+      includeGraphs: true,
+      compressionLevel: 'medium',
+      backupFrequency: 'weekly',
+      graphQuality: 'high',
+      animationsEnabled: true,
+      preloadData: true,
+      cacheSize: 100
+    };
+    setSettings(defaultSettings);
+    setHasUnsavedChanges(true);
+  };
+
+  // Load settings on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('metisai-settings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        setSettings(prev => ({ ...prev, ...parsed }));
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    }
+  }, []);
+
+  const settingSections = [
+    {
+      id: 'general',
+      name: 'General',
+      icon: Settings,
+      description: 'Basic application preferences'
+    },
+    {
+      id: 'notifications',
+      name: 'Notifications',
+      icon: Bell,
+      description: 'Manage your notification preferences'
+    },
+    {
+      id: 'privacy',
+      name: 'Privacy & Security',
+      icon: Shield,
+      description: 'Control your privacy and security settings'
+    },
+    {
+      id: 'lca',
+      name: 'LCA Preferences',
+      icon: BarChart3,
+      description: 'Configure LCA analysis defaults'
+    },
+    {
+      id: 'data',
+      name: 'Data & Export',
+      icon: Database,
+      description: 'Manage data storage and export options'
+    },
+    {
+      id: 'performance',
+      name: 'Performance',
+      icon: Zap,
+      description: 'Optimize application performance'
+    }
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="p-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center">
+            <Settings className="w-8 h-8 mr-3 text-purple-400" />
+            Settings
+          </h1>
+          <p className="text-gray-400">Configure your MetisAI preferences and options</p>
+        </div>
+
+        {/* Save/Reset Actions */}
+        <div className="flex items-center space-x-3">
+          {hasUnsavedChanges && (
+            <span className="text-sm text-yellow-400">Unsaved changes</span>
+          )}
+          <button
+            onClick={resetToDefaults}
+            className="flex items-center space-x-2 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 hover:text-gray-200 font-medium py-2 px-4 rounded-lg transition-all duration-300"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Reset</span>
+          </button>
+          <button
+            onClick={saveSettings}
+            disabled={!hasUnsavedChanges}
+            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Changes</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Settings Navigation */}
+        <div className="lg:w-64 space-y-2">
+          {settingSections.map((section) => (
+            <button
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              className={`w-full text-left p-4 rounded-lg transition-all duration-300 ${
+                activeSection === section.id
+                  ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 text-purple-300'
+                  : 'bg-gray-800/30 hover:bg-gray-700/30 border border-gray-700/30 text-gray-300 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-3 mb-1">
+                <section.icon className="w-5 h-5" />
+                <span className="font-medium">{section.name}</span>
+              </div>
+              <p className="text-sm text-gray-400 pl-8">{section.description}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Settings Content */}
+        <div className="flex-1">
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            
+            {/* General Settings */}
+            {activeSection === 'general' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">General Preferences</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Theme */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Theme</label>
+                    <select
+                      value={settings.theme}
+                      onChange={(e) => updateSetting('theme', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="dark">Dark</option>
+                      <option value="light">Light</option>
+                      <option value="auto">Auto (System)</option>
+                    </select>
+                  </div>
+
+                  {/* Language */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Language</label>
+                    <select
+                      value={settings.language}
+                      onChange={(e) => updateSetting('language', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                      <option value="zh">Chinese</option>
+                    </select>
+                  </div>
+
+                  {/* Timezone */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Timezone</label>
+                    <select
+                      value={settings.timezone}
+                      onChange={(e) => updateSetting('timezone', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">Eastern Time</option>
+                      <option value="America/Los_Angeles">Pacific Time</option>
+                      <option value="Europe/London">London</option>
+                      <option value="Europe/Berlin">Berlin</option>
+                      <option value="Asia/Tokyo">Tokyo</option>
+                      <option value="Asia/Kolkata">India</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Notifications */}
+            {activeSection === 'notifications' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Notification Preferences</h2>
+                
+                <div className="space-y-4">
+                  {[
+                    { key: 'emailNotifications', label: 'Email Notifications', description: 'Receive notifications via email' },
+                    { key: 'pushNotifications', label: 'Push Notifications', description: 'Browser push notifications' },
+                    { key: 'projectUpdates', label: 'Project Updates', description: 'Notifications for project changes' },
+                    { key: 'systemAlerts', label: 'System Alerts', description: 'Important system notifications' }
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-white">{item.label}</h4>
+                        <p className="text-sm text-gray-400">{item.description}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings[item.key as keyof typeof settings] as boolean}
+                          onChange={(e) => updateSetting(item.key, e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Privacy & Security */}
+            {activeSection === 'privacy' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Privacy & Security</h2>
+                
+                <div className="space-y-4">
+                  {[
+                    { key: 'dataSharing', label: 'Data Sharing', description: 'Allow anonymous usage data sharing' },
+                    { key: 'analyticsTracking', label: 'Analytics Tracking', description: 'Help improve the platform with usage analytics' },
+                    { key: 'twoFactorAuth', label: 'Two-Factor Authentication', description: 'Add extra security to your account' }
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-white">{item.label}</h4>
+                        <p className="text-sm text-gray-400">{item.description}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings[item.key as keyof typeof settings] as boolean}
+                          onChange={(e) => updateSetting(item.key, e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  ))}
+
+                  {/* Session Timeout */}
+                  <div className="p-4 bg-gray-800/30 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Session Timeout (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="480"
+                      value={settings.sessionTimeout}
+                      onChange={(e) => updateSetting('sessionTimeout', parseInt(e.target.value))}
+                      className="w-32 px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* LCA Preferences */}
+            {activeSection === 'lca' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">LCA Analysis Preferences</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Default Units */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Units</label>
+                    <select
+                      value={settings.defaultUnits}
+                      onChange={(e) => updateSetting('defaultUnits', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="metric">Metric</option>
+                      <option value="imperial">Imperial</option>
+                    </select>
+                  </div>
+
+                  {/* Default Project Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Project Type</label>
+                    <select
+                      value={settings.defaultProjectType}
+                      onChange={(e) => updateSetting('defaultProjectType', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="Steel">Steel</option>
+                      <option value="Aluminum">Aluminum</option>
+                      <option value="Copper">Copper</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Auto-save Interval */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Auto-save Interval (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={settings.autoSaveInterval}
+                      onChange={(e) => updateSetting('autoSaveInterval', parseInt(e.target.value))}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { key: 'autoSave', label: 'Auto-save Projects', description: 'Automatically save project progress' },
+                    { key: 'showAdvancedOptions', label: 'Show Advanced Options', description: 'Display advanced configuration options' }
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-white">{item.label}</h4>
+                        <p className="text-sm text-gray-400">{item.description}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings[item.key as keyof typeof settings] as boolean}
+                          onChange={(e) => updateSetting(item.key, e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Data & Export */}
+            {activeSection === 'data' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Data & Export Settings</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Export Format */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Export Format</label>
+                    <select
+                      value={settings.exportFormat}
+                      onChange={(e) => updateSetting('exportFormat', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="pdf">PDF</option>
+                      <option value="csv">CSV</option>
+                      <option value="excel">Excel</option>
+                      <option value="json">JSON</option>
+                    </select>
+                  </div>
+
+                  {/* Compression Level */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Compression Level</label>
+                    <select
+                      value={settings.compressionLevel}
+                      onChange={(e) => updateSetting('compressionLevel', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+
+                  {/* Backup Frequency */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Backup Frequency</label>
+                    <select
+                      value={settings.backupFrequency}
+                      onChange={(e) => updateSetting('backupFrequency', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="manual">Manual Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
+                    <div>
+                      <h4 className="font-medium text-white">Include Graphs in Exports</h4>
+                      <p className="text-sm text-gray-400">Include visualization graphs in exported reports</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.includeGraphs}
+                        onChange={(e) => updateSetting('includeGraphs', e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Performance */}
+            {activeSection === 'performance' && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Performance Settings</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Graph Quality */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Graph Rendering Quality</label>
+                    <select
+                      value={settings.graphQuality}
+                      onChange={(e) => updateSetting('graphQuality', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="low">Low (Faster)</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High (Slower)</option>
+                    </select>
+                  </div>
+
+                  {/* Cache Size */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Cache Size (MB)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="1000"
+                      value={settings.cacheSize}
+                      onChange={(e) => updateSetting('cacheSize', parseInt(e.target.value))}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { key: 'animationsEnabled', label: 'Enable Animations', description: 'Smooth animations and transitions' },
+                    { key: 'preloadData', label: 'Preload Data', description: 'Preload data for faster navigation' }
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-white">{item.label}</h4>
+                        <p className="text-sm text-gray-400">{item.description}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings[item.key as keyof typeof settings] as boolean}
+                          onChange={(e) => updateSetting(item.key, e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Save Confirmation */}
+      {showSaveConfirmation && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2"
+        >
+          <CheckCircle className="w-5 h-5" />
+          <span className="font-medium">Settings saved successfully!</span>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function DemoPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -3231,37 +4267,14 @@ export default function DemoPage() {
           )}
 
           {activeTab === 'reports' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center py-16"
-            >
-              <FileText className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">Reports & Exports</h1>
-              <p className="text-gray-400 mb-8">Generate comprehensive reports and export your analysis</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">Advanced reporting system in development</p>
-              </div>
-            </motion.div>
+            <ReportsAndExports 
+              projects={projects}
+              currentProject={currentProject}
+            />
           )}
 
           {activeTab === 'settings' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center py-16"
-            >
-              <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">Settings</h1>
-              <p className="text-gray-400 mb-8">Configure your MetisAI preferences</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">Settings panel under construction</p>
-              </div>
-            </motion.div>
+            <SettingsPanel />
           )}
 
           {activeTab === 'user' && (
