@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, Circle, MapPin, Truck, Recycle, Info, Download, Eye, Filter, Search } from 'lucide-react';
+import { ArrowLeft, Play, BarChart3, Menu, X, Settings, User, Users, FolderOpen, Zap, FileText, Activity, Plus, Edit, Trash2, Calendar, Clock, ArrowRight, CheckCircle, XCircle, AlertCircle, Circle, MapPin, Truck, Recycle, Info, Download, Eye, Filter, Search, Bell, Shield, Database, Globe, Palette, Key, EyeOff, Save, RefreshCw, AlertTriangle, Mail, Phone, Building, Lock, Unlock, Monitor, Moon, Sun, HardDrive, Cloud, Wifi, ChevronRight, MoreVertical } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -19,6 +19,21 @@ interface Project {
     graphNodes: GraphNode[];
     analysisComplete: boolean;
   };
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'Admin' | 'Manager' | 'Engineer' | 'Analyst';
+  department: string;
+  status: 'Active' | 'Away' | 'Inactive';
+  lastLogin: string;
+  joinDate: string;
+  projectsCount: number;
+  avatar: string;
+  location: string;
+  phone: string;
 }
 
 interface LCAInput {
@@ -2204,6 +2219,2172 @@ function ReportsAndExports({
   );
 }
 
+// AI Optimizer Component - Redesigned to be consistent with other pages
+function AIOptimizerPanel({ projects, onGraphViewChange }: { projects: Project[], onGraphViewChange: (showing: boolean) => void }) {
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showGraph, setShowGraph] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'Steel' | 'Aluminum' | 'Copper' | 'Other'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'nodes'>('name');
+  
+  // Filter completed projects
+  const completedProjects = projects.filter(project => project.status === 'Completed');
+  
+  // Apply search and filter
+  const filteredProjects = completedProjects.filter(project => {
+    const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || project.type === filterType;
+    return matchesSearch && matchesType;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'date':
+        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+      case 'nodes':
+        return (b.lcaData?.graphNodes?.length || 0) - (a.lcaData?.graphNodes?.length || 0);
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  });
+
+  const handleProjectSelect = (project: Project) => {
+    setSelectedProject(project);
+    setShowGraph(true);
+    onGraphViewChange(true);
+  };
+
+  const handleBackToProjects = () => {
+    setShowGraph(false);
+    setSelectedProject(null);
+    onGraphViewChange(false);
+  };
+
+  const ProjectGraphVisualization = ({ project }: { project: Project }) => {
+    const graphNodes = project.lcaData?.graphNodes || [];
+    const inputs = project.lcaData?.inputs || [];
+    
+    if (graphNodes.length === 0) {
+      return (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+          className="flex items-center justify-center h-full"
+        >
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-12 text-center max-w-lg">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <AlertCircle className="w-16 h-16 text-orange-400 mx-auto mb-6" />
+            </motion.div>
+            <motion.h3
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="text-xl font-bold text-orange-300 mb-4"
+            >
+              No Analysis Data Available
+            </motion.h3>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="text-gray-400 leading-relaxed"
+            >
+              This project needs to be completed in the Life Cycle Modeler to generate the AI-powered process flow visualization and environmental impact analysis.
+            </motion.p>
+          </div>
+        </motion.div>
+      );
+    }
+
+    return (
+      <div className="w-full h-full overflow-hidden relative">
+        <ObsidianGraph 
+          inputs={inputs}
+          currentStep={inputs.length - 1}
+          selectedNode={null}
+          setSelectedNode={() => {}}
+          autoFocusOnMount={true}
+          analysisComplete={true}
+          initialNodes={graphNodes}
+          onNodesChange={() => {}}
+          onNodeInfoUpdate={() => {}}
+          isLoadingSavedProject={false}
+        />
+      </div>
+    );
+  };
+
+  // Show graph view when a project is selected
+  if (showGraph && selectedProject) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+        }}></div>
+
+        {/* Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative z-10 border-b border-gray-700/30 bg-gray-900/50 backdrop-blur-xl flex-shrink-0"
+        >
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleBackToProjects}
+                  className="flex items-center gap-2 bg-gradient-to-r from-gray-800/60 to-gray-700/60 border border-gray-600/50 rounded-lg px-4 py-2 hover:from-gray-700/60 hover:to-gray-600/60 transition-all duration-300"
+                >
+                  <ArrowLeft className="w-4 h-4 text-purple-400" />
+                  <span className="text-gray-300 text-sm">Back to Projects</span>
+                </motion.button>
+                
+                <div className="p-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
+                  <Zap className="w-5 h-5 text-purple-400" />
+                </div>
+              </div>
+
+              <div className="text-center">
+                <motion.h1 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="text-xl font-bold text-white"
+                >
+                  {selectedProject.name}
+                </motion.h1>
+                <p className="text-gray-400 text-sm">AI-Powered LCA Process Visualization</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6, delay: 0.6 }}
+                  className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-1.5"
+                >
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-green-300 text-sm font-medium">Completed</span>
+                </motion.div>
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6, delay: 0.8 }}
+                  className="flex items-center gap-2 bg-gray-800/50 border border-gray-600/30 rounded-lg px-3 py-1.5"
+                >
+                  <Activity className="w-4 h-4 text-blue-400" />
+                  <span className="text-white text-sm font-medium">{selectedProject.lcaData?.graphNodes?.length || 0} nodes</span>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Graph container */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+          className="relative z-10 flex-1 min-h-0 w-full overflow-hidden"
+        >
+          <ProjectGraphVisualization project={selectedProject} />
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Show main optimizer interface
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="p-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center">
+            <Zap className="w-8 h-8 mr-3 text-yellow-400" />
+            AI Optimizer & Scenarios
+          </h1>
+          <p className="text-gray-400">Analyze and optimize LCA processes using AI-powered insights</p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search completed projects..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+
+          {/* Type Filter */}
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as 'all' | 'Steel' | 'Aluminum' | 'Copper' | 'Other')}
+              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50 appearance-none"
+            >
+              <option value="all">All Types</option>
+              <option value="Steel">Steel</option>
+              <option value="Aluminum">Aluminum</option>
+              <option value="Copper">Copper</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* Sort */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'nodes')}
+            className="w-full px-4 py-2 bg-gray-800/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50 appearance-none"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="date">Sort by Date</option>
+            <option value="nodes">Sort by Complexity</option>
+          </select>
+
+          {/* Stats */}
+          <div className="flex items-center justify-center bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-lg px-4 py-2">
+            <span className="text-purple-300 text-sm font-medium">
+              {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''} available
+            </span>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/20 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <FolderOpen className="w-6 h-6 text-blue-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">{completedProjects.length}</p>
+                <p className="text-sm text-gray-400">Completed Projects</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-green-500/10 to-green-600/10 border border-green-500/20 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <Activity className="w-6 h-6 text-green-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">
+                  {Math.round(completedProjects.reduce((acc, p) => acc + (p.lcaData?.graphNodes?.length || 0), 0) / completedProjects.length) || 0}
+                </p>
+                <p className="text-sm text-gray-400">Avg. Complexity</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border border-purple-500/20 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <Zap className="w-6 h-6 text-purple-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">{completedProjects.length * 3}</p>
+                <p className="text-sm text-gray-400">AI Optimizations</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border border-orange-500/20 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-6 h-6 text-orange-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">{completedProjects.length * 2}</p>
+                <p className="text-sm text-gray-400">Scenarios Analyzed</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Projects List */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <FolderOpen className="w-5 h-5 text-purple-400" />
+          Available Projects ({filteredProjects.length})
+        </h2>
+        
+        {filteredProjects.length === 0 ? (
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-12 text-center">
+            {completedProjects.length === 0 ? (
+              <>
+                <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-orange-300 mb-2">No Completed Projects</h3>
+                <p className="text-gray-500">Complete some LCA analyses in the Life Cycle Modeler to access AI optimization features</p>
+              </>
+            ) : (
+              <>
+                <Search className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-300 mb-2">No Projects Found</h3>
+                <p className="text-gray-500">Try adjusting your search criteria or filters</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProjects.map((project) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -4 }}
+                className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 hover:border-purple-500/30 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/10 group"
+                onClick={() => handleProjectSelect(project)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
+                      <Activity className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white group-hover:text-purple-300 transition-colors">{project.name}</h3>
+                      <p className="text-gray-400 text-sm">{project.type} • {project.functionalUnit}</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                </div>
+
+                <p className="text-gray-400 text-sm mb-4 line-clamp-2">{project.description}</p>
+                
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Completed:</span>
+                    <span className="text-white">{project.lastModified}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Graph Nodes:</span>
+                    <span className="text-purple-400 font-medium">{project.lcaData?.graphNodes?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">AI Score:</span>
+                    <span className="text-green-400 font-medium">{Math.round(Math.random() * 30 + 70)}%</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded border border-green-500/30">
+                    Completed
+                  </span>
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded border border-blue-500/30">
+                    {project.type}
+                  </span>
+                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs font-medium rounded border border-purple-500/30">
+                    Optimized
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function UserManagementPanel() {
+  const [activeView, setActiveView] = useState('overview');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Mock user data
+  const [users, setUsers] = useState<User[]>([
+    {
+      id: 1,
+      name: 'Jisnu Saravanan',
+      email: 'jisnu.saravanan@metalcorp.com',
+      role: 'Admin',
+      department: 'Sustainability & LCA',
+      status: 'Active',
+      lastLogin: '2 hours ago',
+      joinDate: '2024-01-15',
+      projectsCount: 24,
+      avatar: 'JS',
+      location: 'Pittsburgh, PA',
+      phone: '+1 (555) 123-4567'
+    },
+    {
+      id: 2,
+      name: 'Sarah Chen',
+      email: 'sarah.chen@metalcorp.com',
+      role: 'Engineer',
+      department: 'Process Engineering',
+      status: 'Active',
+      lastLogin: '1 day ago',
+      joinDate: '2024-02-20',
+      projectsCount: 18,
+      avatar: 'SC',
+      location: 'Detroit, MI',
+      phone: '+1 (555) 234-5678'
+    },
+    {
+      id: 3,
+      name: 'Michael Rodriguez',
+      email: 'michael.rodriguez@metalcorp.com',
+      role: 'Manager',
+      department: 'Quality Assurance',
+      status: 'Active',
+      lastLogin: '3 hours ago',
+      joinDate: '2023-11-10',
+      projectsCount: 31,
+      avatar: 'MR',
+      location: 'Houston, TX',
+      phone: '+1 (555) 345-6789'
+    },
+    {
+      id: 4,
+      name: 'Emma Thompson',
+      email: 'emma.thompson@metalcorp.com',
+      role: 'Analyst',
+      department: 'Research & Development',
+      status: 'Away',
+      lastLogin: '2 days ago',
+      joinDate: '2024-03-05',
+      projectsCount: 12,
+      avatar: 'ET',
+      location: 'Seattle, WA',
+      phone: '+1 (555) 456-7890'
+    },
+    {
+      id: 5,
+      name: 'David Kim',
+      email: 'david.kim@metalcorp.com',
+      role: 'Engineer',
+      department: 'Environmental Compliance',
+      status: 'Inactive',
+      lastLogin: '1 week ago',
+      joinDate: '2023-08-22',
+      projectsCount: 8,
+      avatar: 'DK',
+      location: 'Los Angeles, CA',
+      phone: '+1 (555) 567-8901'
+    },
+    {
+      id: 6,
+      name: 'Lisa Anderson',
+      email: 'lisa.anderson@metalcorp.com',
+      role: 'Manager',
+      department: 'Materials Science',
+      status: 'Active',
+      lastLogin: '4 hours ago',
+      joinDate: '2023-12-01',
+      projectsCount: 22,
+      avatar: 'LA',
+      location: 'Phoenix, AZ',
+      phone: '+1 (555) 678-9012'
+    }
+  ]);
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.department.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = selectedRole === 'all' || user.role === selectedRole;
+    const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
+    
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  const userStats = {
+    total: users.length,
+    active: users.filter(u => u.status === 'Active').length,
+    inactive: users.filter(u => u.status === 'Inactive').length,
+    away: users.filter(u => u.status === 'Away').length,
+    admins: users.filter(u => u.role === 'Admin').length,
+    managers: users.filter(u => u.role === 'Manager').length,
+    engineers: users.filter(u => u.role === 'Engineer').length,
+    analysts: users.filter(u => u.role === 'Analyst').length
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Active': return 'text-green-400 bg-green-400/20';
+      case 'Away': return 'text-yellow-400 bg-yellow-400/20';
+      case 'Inactive': return 'text-red-400 bg-red-400/20';
+      default: return 'text-gray-400 bg-gray-400/20';
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'Admin': return 'text-purple-400 bg-purple-400/20';
+      case 'Manager': return 'text-blue-400 bg-blue-400/20';
+      case 'Engineer': return 'text-green-400 bg-green-400/20';
+      case 'Analyst': return 'text-orange-400 bg-orange-400/20';
+      default: return 'text-gray-400 bg-gray-400/20';
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="min-h-screen p-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-purple-600/20 rounded-xl border border-purple-500/30">
+            <Users className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-white">User Management</h1>
+            <p className="text-gray-400">Manage team members and access permissions</p>
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowAddUserModal(true)}
+          className="px-4 py-2 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add User
+        </button>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex space-x-1 bg-gray-800/50 rounded-lg p-1">
+        {[
+          { id: 'overview', label: 'Overview', icon: BarChart3 },
+          { id: 'users', label: 'All Users', icon: Users },
+          { id: 'roles', label: 'Roles & Permissions', icon: Shield },
+          { id: 'activity', label: 'Activity Log', icon: Activity }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveView(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              activeView === tab.id
+                ? 'bg-purple-600/20 border border-purple-500/30 text-purple-300'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview Tab */}
+      {activeView === 'overview' && (
+        <div className="space-y-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Users className="w-8 h-8 text-blue-400" />
+                <div>
+                  <p className="text-2xl font-bold text-white">{userStats.total}</p>
+                  <p className="text-gray-400 text-sm">Total Users</p>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">
+                +2 this month
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <CheckCircle className="w-8 h-8 text-green-400" />
+                <div>
+                  <p className="text-2xl font-bold text-white">{userStats.active}</p>
+                  <p className="text-gray-400 text-sm">Active Users</p>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">
+                {Math.round((userStats.active / userStats.total) * 100)}% online rate
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Shield className="w-8 h-8 text-purple-400" />
+                <div>
+                  <p className="text-2xl font-bold text-white">{userStats.admins}</p>
+                  <p className="text-gray-400 text-sm">Administrators</p>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">
+                System access level
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Building className="w-8 h-8 text-orange-400" />
+                <div>
+                  <p className="text-2xl font-bold text-white">6</p>
+                  <p className="text-gray-400 text-sm">Departments</p>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500">
+                Across organization
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activity & Department Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Activity */}
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-purple-400" />
+                Recent Activity
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { user: 'Jisnu Saravanan', action: 'Created new project', time: '2 hours ago', type: 'create' },
+                  { user: 'Sarah Chen', action: 'Updated profile settings', time: '4 hours ago', type: 'update' },
+                  { user: 'Michael Rodriguez', action: 'Completed LCA analysis', time: '6 hours ago', type: 'complete' },
+                  { user: 'Emma Thompson', action: 'Logged in from new device', time: '1 day ago', type: 'login' },
+                  { user: 'Lisa Anderson', action: 'Generated sustainability report', time: '2 days ago', type: 'report' }
+                ].map((activity, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-gray-800/30 rounded-lg">
+                    <div className={`w-2 h-2 rounded-full ${
+                      activity.type === 'create' ? 'bg-green-400' :
+                      activity.type === 'update' ? 'bg-blue-400' :
+                      activity.type === 'complete' ? 'bg-purple-400' :
+                      activity.type === 'login' ? 'bg-yellow-400' :
+                      'bg-orange-400'
+                    }`}></div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm">
+                        <span className="font-medium">{activity.user}</span> {activity.action}
+                      </p>
+                      <p className="text-gray-400 text-xs">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Department Distribution */}
+            <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Building className="w-5 h-5 text-purple-400" />
+                Department Distribution
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { name: 'Sustainability & LCA', count: 1, color: 'bg-green-400' },
+                  { name: 'Process Engineering', count: 1, color: 'bg-blue-400' },
+                  { name: 'Quality Assurance', count: 1, color: 'bg-purple-400' },
+                  { name: 'Research & Development', count: 1, color: 'bg-orange-400' },
+                  { name: 'Environmental Compliance', count: 1, color: 'bg-yellow-400' },
+                  { name: 'Materials Science', count: 1, color: 'bg-red-400' }
+                ].map((dept, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${dept.color}`}></div>
+                    <div className="flex-1 flex justify-between">
+                      <span className="text-gray-300 text-sm">{dept.name}</span>
+                      <span className="text-white font-medium">{dept.count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Users Tab */}
+      {activeView === 'users' && (
+        <div className="space-y-6">
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search users, emails, or departments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gray-800/50 border border-gray-600 rounded-lg pl-10 pr-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+              />
+            </div>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            >
+              <option value="all">All Roles</option>
+              <option value="Admin">Admin</option>
+              <option value="Manager">Manager</option>
+              <option value="Engineer">Engineer</option>
+              <option value="Analyst">Analyst</option>
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            >
+              <option value="all">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Away">Away</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+
+          {/* Users Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredUsers.map((user) => (
+              <div key={user.id} className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6 hover:border-purple-500/30 transition-colors">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
+                      {user.avatar}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white">{user.name}</h3>
+                      <p className="text-gray-400 text-sm">{user.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedUser(user);
+                      setShowUserDetails(true);
+                    }}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-300 text-sm">{user.department}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-300 text-sm">{user.location}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                      {user.role}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
+                      {user.status}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white font-medium">{user.projectsCount}</p>
+                    <p className="text-gray-400 text-xs">Projects</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-700/50">
+                  <p className="text-gray-400 text-xs">Last login: {user.lastLogin}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Roles & Permissions Tab */}
+      {activeView === 'roles' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-purple-400" />
+              Role Permissions Matrix
+            </h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left p-3 text-gray-300">Permission</th>
+                    <th className="text-center p-3 text-purple-400">Admin</th>
+                    <th className="text-center p-3 text-blue-400">Manager</th>
+                    <th className="text-center p-3 text-green-400">Engineer</th>
+                    <th className="text-center p-3 text-orange-400">Analyst</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { permission: 'Create Projects', admin: true, manager: true, engineer: true, analyst: false },
+                    { permission: 'Edit All Projects', admin: true, manager: true, engineer: false, analyst: false },
+                    { permission: 'Delete Projects', admin: true, manager: false, engineer: false, analyst: false },
+                    { permission: 'Generate Reports', admin: true, manager: true, engineer: true, analyst: true },
+                    { permission: 'Manage Users', admin: true, manager: false, engineer: false, analyst: false },
+                    { permission: 'System Settings', admin: true, manager: false, engineer: false, analyst: false },
+                    { permission: 'Export Data', admin: true, manager: true, engineer: true, analyst: true },
+                    { permission: 'View Analytics', admin: true, manager: true, engineer: true, analyst: true }
+                  ].map((row, index) => (
+                    <tr key={index} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="p-3 text-white">{row.permission}</td>
+                      <td className="p-3 text-center">
+                        {row.admin ? <CheckCircle className="w-5 h-5 text-green-400 mx-auto" /> : <XCircle className="w-5 h-5 text-red-400 mx-auto" />}
+                      </td>
+                      <td className="p-3 text-center">
+                        {row.manager ? <CheckCircle className="w-5 h-5 text-green-400 mx-auto" /> : <XCircle className="w-5 h-5 text-red-400 mx-auto" />}
+                      </td>
+                      <td className="p-3 text-center">
+                        {row.engineer ? <CheckCircle className="w-5 h-5 text-green-400 mx-auto" /> : <XCircle className="w-5 h-5 text-red-400 mx-auto" />}
+                      </td>
+                      <td className="p-3 text-center">
+                        {row.analyst ? <CheckCircle className="w-5 h-5 text-green-400 mx-auto" /> : <XCircle className="w-5 h-5 text-red-400 mx-auto" />}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity Log Tab */}
+      {activeView === 'activity' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-purple-400" />
+              System Activity Log
+            </h3>
+            
+            <div className="space-y-3">
+              {[
+                { user: 'Jisnu Saravanan', action: 'Logged in from new IP address', time: '2 hours ago', type: 'security', severity: 'medium' },
+                { user: 'Sarah Chen', action: 'Updated project "Steel Production Analysis"', time: '3 hours ago', type: 'project', severity: 'low' },
+                { user: 'System', action: 'Automated backup completed successfully', time: '4 hours ago', type: 'system', severity: 'low' },
+                { user: 'Michael Rodriguez', action: 'Generated compliance report', time: '5 hours ago', type: 'report', severity: 'low' },
+                { user: 'Admin', action: 'User permissions updated for Emma Thompson', time: '6 hours ago', type: 'admin', severity: 'high' },
+                { user: 'Emma Thompson', action: 'Failed login attempt (incorrect password)', time: '1 day ago', type: 'security', severity: 'medium' },
+                { user: 'David Kim', action: 'Account deactivated by administrator', time: '2 days ago', type: 'admin', severity: 'high' },
+                { user: 'Lisa Anderson', action: 'Exported project data', time: '2 days ago', type: 'data', severity: 'medium' }
+              ].map((log, index) => (
+                <div key={index} className="flex items-center gap-4 p-4 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-colors">
+                  <div className={`w-3 h-3 rounded-full ${
+                    log.severity === 'high' ? 'bg-red-400' :
+                    log.severity === 'medium' ? 'bg-yellow-400' :
+                    'bg-green-400'
+                  }`}></div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-white font-medium">{log.user}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        log.type === 'security' ? 'bg-red-400/20 text-red-400' :
+                        log.type === 'admin' ? 'bg-purple-400/20 text-purple-400' :
+                        log.type === 'project' ? 'bg-blue-400/20 text-blue-400' :
+                        log.type === 'system' ? 'bg-gray-400/20 text-gray-400' :
+                        log.type === 'report' ? 'bg-green-400/20 text-green-400' :
+                        'bg-orange-400/20 text-orange-400'
+                      }`}>
+                        {log.type}
+                      </span>
+                    </div>
+                    <p className="text-gray-300 text-sm">{log.action}</p>
+                  </div>
+                  <div className="text-gray-400 text-sm">{log.time}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function BasicSettingsPanel() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [notifications, setNotifications] = useState({
+    email: true,
+    push: false,
+    sms: false,
+    reports: true,
+    projects: true,
+    maintenance: false
+  });
+  const [darkMode, setDarkMode] = useState(true);
+  const [autoSave, setAutoSave] = useState(true);
+  const [language, setLanguage] = useState('en-US');
+  const [timezone, setTimezone] = useState('America/New_York');
+  const [dataRetention, setDataRetention] = useState('12');
+  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="min-h-screen pt-2 px-6 pb-6 space-y-6"
+    >
+      {/* Header */}
+      <div className="mb-4">
+        <div className="flex items-center gap-4 mb-2">
+          <div className="p-3 bg-purple-600/20 rounded-xl border border-purple-500/30">
+            <Settings className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-white">Settings</h1>
+            <p className="text-gray-400">Manage your account preferences and configuration</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          {/* Profile Section */}
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <User className="w-5 h-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">Profile Information</h3>
+            </div>
+            
+            {/* Profile Picture */}
+            <div className="flex items-center gap-6 mb-6">
+              <div className="relative">
+                <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
+                  JS
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-gray-800"></div>
+              </div>
+              <div>
+                <button className="px-4 py-2 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors mr-2">
+                  Change Photo
+                </button>
+                <button className="px-4 py-2 bg-gray-600/20 border border-gray-500/30 rounded-lg text-gray-300 hover:bg-gray-600/30 transition-colors">
+                  Remove
+                </button>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+                  <input 
+                    type="text" 
+                    defaultValue="Jisnu"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+                  <input 
+                    type="text" 
+                    defaultValue="Saravanan"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+                <input 
+                  type="email" 
+                  defaultValue="jisnu.saravanan@metalcorp.com"
+                  className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Job Title</label>
+                  <input 
+                    type="text" 
+                    defaultValue="Senior Metallurgical Engineer"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Organization</label>
+                  <input 
+                    type="text" 
+                    defaultValue="MetalCorp Industries"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+                  <input 
+                    type="tel" 
+                    defaultValue="+1 (555) 123-4567"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                  <input 
+                    type="text" 
+                    defaultValue="Pittsburgh, PA"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Bio</label>
+                <textarea 
+                  rows={3}
+                  defaultValue="Experienced metallurgical engineer specializing in sustainable manufacturing processes and lifecycle assessment for metal production industries."
+                  className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Security Section */}
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Shield className="w-5 h-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">Security & Authentication</h3>
+            </div>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter current password"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 pr-10 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                  <input 
+                    type="password"
+                    placeholder="Enter new password"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                  <input 
+                    type="password"
+                    placeholder="Confirm new password"
+                    className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50">
+                <div>
+                  <p className="text-white font-medium">Two-Factor Authentication</p>
+                  <p className="text-gray-400 text-sm">Add an extra layer of security to your account</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={twoFactorAuth}
+                    onChange={(e) => setTwoFactorAuth(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-400" />
+                  <p className="text-orange-300 font-medium">Security Recommendations</p>
+                </div>
+                <ul className="text-orange-200 text-sm space-y-1">
+                  <li>• Use a strong password with at least 12 characters</li>
+                  <li>• Enable two-factor authentication for enhanced security</li>
+                  <li>• Change your password regularly (every 90 days)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* Notifications Section */}
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Bell className="w-5 h-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">Notification Preferences</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Email Notifications</p>
+                  <p className="text-gray-400 text-sm">Receive updates via email</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.email}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, email: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Push Notifications</p>
+                  <p className="text-gray-400 text-sm">Browser push notifications</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.push}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, push: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">SMS Alerts</p>
+                  <p className="text-gray-400 text-sm">Critical alerts via SMS</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.sms}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, sms: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Weekly Reports</p>
+                  <p className="text-gray-400 text-sm">Weekly analysis summaries</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.reports}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, reports: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Project Updates</p>
+                  <p className="text-gray-400 text-sm">Notifications for project changes</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.projects}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, projects: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">System Maintenance</p>
+                  <p className="text-gray-400 text-sm">System update notifications</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={notifications.maintenance}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, maintenance: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Preferences Section */}
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Palette className="w-5 h-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">Application Preferences</h3>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Dark Mode</p>
+                  <p className="text-gray-400 text-sm">Use dark theme interface</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={darkMode}
+                    onChange={(e) => setDarkMode(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-800/30 rounded-lg transition-colors">
+                <div>
+                  <p className="text-white font-medium">Auto-Save</p>
+                  <p className="text-gray-400 text-sm">Automatically save your work</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={autoSave}
+                    onChange={(e) => setAutoSave(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Language</label>
+                <select 
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="en-US">English (US)</option>
+                  <option value="en-UK">English (UK)</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="ja">Japanese</option>
+                  <option value="zh">Chinese</option>
+                  <option value="pt">Portuguese</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Timezone</label>
+                <select 
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="America/New_York">Eastern Time (US & Canada)</option>
+                  <option value="America/Chicago">Central Time (US & Canada)</option>
+                  <option value="America/Denver">Mountain Time (US & Canada)</option>
+                  <option value="America/Los_Angeles">Pacific Time (US & Canada)</option>
+                  <option value="Europe/London">London (GMT)</option>
+                  <option value="Europe/Paris">Paris (CET)</option>
+                  <option value="Asia/Tokyo">Tokyo (JST)</option>
+                  <option value="Asia/Shanghai">Shanghai (CST)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Data Retention Period</label>
+                <select 
+                  value={dataRetention}
+                  onChange={(e) => setDataRetention(e.target.value)}
+                  className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="3">3 months</option>
+                  <option value="6">6 months</option>
+                  <option value="12">12 months</option>
+                  <option value="24">24 months</option>
+                  <option value="unlimited">Unlimited</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Data & Privacy Section */}
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Database className="w-5 h-5 text-purple-400" />
+              <h3 className="text-xl font-semibold text-white">Data & Privacy</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Download className="w-4 h-4 text-blue-400" />
+                  <p className="text-blue-300 font-medium">Export Your Data</p>
+                </div>
+                <p className="text-blue-200 text-sm mb-3">Download all your account data and project information</p>
+                <button className="px-4 py-2 bg-blue-600/20 border border-blue-500/30 rounded-lg text-blue-300 hover:bg-blue-600/30 transition-colors text-sm">
+                  Request Data Export
+                </button>
+              </div>
+              
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <p className="text-red-300 font-medium">Delete Account</p>
+                </div>
+                <p className="text-red-200 text-sm mb-3">Permanently delete your account and all associated data</p>
+                <button className="px-4 py-2 bg-red-600/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-600/30 transition-colors text-sm">
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-center pt-8">
+        <button className="px-12 py-4 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors font-medium text-lg">
+          Save All Changes
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function SettingsContent({ activeSection }: { activeSection: string }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 'email', title: 'Email Notifications', description: 'Receive updates via email', enabled: true },
+    { id: 'push', title: 'Push Notifications', description: 'Browser push notifications', enabled: false },
+    { id: 'sms', title: 'SMS Alerts', description: 'Critical alerts via SMS', enabled: false },
+    { id: 'reports', title: 'Weekly Reports', description: 'Weekly analysis summaries', enabled: true },
+    { id: 'projects', title: 'Project Updates', description: 'Notifications for project changes', enabled: true },
+    { id: 'system', title: 'System Maintenance', description: 'System update notifications', enabled: true }
+  ]);
+
+  const [darkMode, setDarkMode] = useState(true);
+  const [autoSave, setAutoSave] = useState(true);
+  const [dataRetention, setDataRetention] = useState('12');
+  const [apiUsage, setApiUsage] = useState(false);
+  const [backupFrequency, setBackupFrequency] = useState('weekly');
+
+  const settingSections = [
+    {
+      id: 'profile',
+      title: 'User Profile',
+      description: 'Manage your personal information and account details',
+      icon: <User className="w-5 h-5" />,
+      color: 'from-blue-500 to-cyan-500'
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      description: 'Configure how you receive updates and alerts',
+      icon: <Bell className="w-5 h-5" />,
+      color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'security',
+      title: 'Security & Privacy',
+      description: 'Manage security settings and data privacy',
+      icon: <Shield className="w-5 h-5" />,
+      color: 'from-green-500 to-emerald-500'
+    },
+    {
+      id: 'data',
+      title: 'Data Management',
+      description: 'Control data storage, export, and retention',
+      icon: <Database className="w-5 h-5" />,
+      color: 'from-orange-500 to-red-500'
+    },
+    {
+      id: 'preferences',
+      title: 'Preferences',
+      description: 'Customize your experience and interface',
+      icon: <Palette className="w-5 h-5" />,
+      color: 'from-indigo-500 to-purple-500'
+    },
+    {
+      id: 'system',
+      title: 'System Settings',
+      description: 'Advanced configuration and performance settings',
+      icon: <Settings className="w-5 h-5" />,
+      color: 'from-gray-500 to-slate-500'
+    }
+  ];
+
+  const dataUsageStats = [
+    { category: 'Projects', usage: 12, total: 50, unit: 'projects', color: 'bg-blue-500' },
+    { category: 'Storage', usage: 2.4, total: 10, unit: 'GB', color: 'bg-purple-500' },
+    { category: 'API Calls', usage: 1250, total: 5000, unit: 'calls', color: 'bg-green-500' },
+    { category: 'Reports', usage: 8, total: 25, unit: 'reports', color: 'bg-orange-500' }
+  ];
+
+  const toggleNotification = (id: string) => {
+    setNotifications(prev => 
+      prev.map(notif => 
+        notif.id === id ? { ...notif, enabled: !notif.enabled } : notif
+      )
+    );
+  };
+
+  const renderProfileSection = () => (
+    <div className="space-y-6">
+      {/* Profile Header Card */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Avatar */}
+          <div className="flex-shrink-0">
+            <div className="relative">
+              <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl flex items-center justify-center text-white text-3xl font-bold">
+                JS
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-gray-800"></div>
+            </div>
+            <button className="mt-4 px-4 py-2 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors">
+              Change Photo
+            </button>
+          </div>
+          
+          {/* Basic Info */}
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-white mb-2">Jisnu Saravanan</h2>
+            <p className="text-gray-300 mb-1">Senior Metallurgical Engineer</p>
+            <p className="text-gray-400 mb-4">MetalCorp Industries</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-purple-400" />
+                <span className="text-gray-300 text-sm">jisnu.saravanan@metalcorp.com</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-purple-400" />
+                <span className="text-gray-300 text-sm">+1 (555) 123-4567</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-purple-400" />
+                <span className="text-gray-300 text-sm">Pittsburgh, PA</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-purple-400" />
+                <span className="text-gray-300 text-sm">Sustainability & LCA</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Personal Information */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <User className="w-5 h-5 text-purple-400" />
+          <h3 className="text-xl font-semibold text-white">Personal Information</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+            <input 
+              type="text" 
+              defaultValue="Jisnu"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+            <input 
+              type="text" 
+              defaultValue="Saravanan"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+            <input 
+              type="email" 
+              defaultValue="jisnu.saravanan@metalcorp.com"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+            <input 
+              type="tel" 
+              defaultValue="+1 (555) 123-4567"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Date of Birth</label>
+            <input 
+              type="date" 
+              defaultValue="1990-05-15"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Gender</label>
+            <select className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors">
+              <option>Prefer not to say</option>
+              <option>Male</option>
+              <option>Female</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Professional Information */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Building className="w-5 h-5 text-purple-400" />
+          <h3 className="text-xl font-semibold text-white">Professional Details</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Job Title</label>
+            <input 
+              type="text" 
+              defaultValue="Senior Metallurgical Engineer"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Organization</label>
+            <input 
+              type="text" 
+              defaultValue="MetalCorp Industries"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
+            <select className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors">
+              <option>Sustainability & LCA</option>
+              <option>Production Engineering</option>
+              <option>Quality Assurance</option>
+              <option>Research & Development</option>
+              <option>Environmental Compliance</option>
+              <option>Process Engineering</option>
+              <option>Materials Science</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Employee ID</label>
+            <input 
+              type="text" 
+              defaultValue="EMP-2024-001234"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Work Location</label>
+            <input 
+              type="text" 
+              defaultValue="Pittsburgh, PA, United States"
+              className="w-full bg-gray-800/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Account Statistics */}
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <BarChart3 className="w-5 h-5 text-purple-400" />
+          <h3 className="text-xl font-semibold text-white">Account Activity</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <FolderOpen className="w-6 h-6 text-purple-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">24</p>
+                <p className="text-sm text-gray-400">Projects</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-green-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">18</p>
+                <p className="text-sm text-gray-400">Completed</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <FileText className="w-6 h-6 text-blue-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">42</p>
+                <p className="text-sm text-gray-400">Reports</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-6 h-6 text-orange-400" />
+              <div>
+                <p className="text-2xl font-bold text-white">8</p>
+                <p className="text-sm text-gray-400">Months</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button className="px-6 py-2 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderNotificationsSection = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Bell className="w-5 h-5 text-purple-400" />
+          Notification Preferences
+        </h3>
+        <div className="space-y-4">
+          {notifications.map((notif) => (
+            <div key={notif.id} className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+              <div>
+                <h4 className="font-medium text-white">{notif.title}</h4>
+                <p className="text-sm text-gray-400">{notif.description}</p>
+              </div>
+              <button
+                onClick={() => toggleNotification(notif.id)}
+                className={`relative w-12 h-6 rounded-full transition-colors ${
+                  notif.enabled ? 'bg-blue-600' : 'bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                    notif.enabled ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Notification Timing */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-orange-400" />
+          Notification Timing
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Quiet Hours Start</label>
+            <input 
+              type="time" 
+              defaultValue="22:00"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Quiet Hours End</label>
+            <input 
+              type="time" 
+              defaultValue="08:00"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSecuritySection = () => (
+    <div className="space-y-6">
+      {/* Password & Authentication */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Key className="w-5 h-5 text-green-400" />
+          Password & Authentication
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Current Password</label>
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 pr-10 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter current password"
+              />
+              <button
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">New Password</label>
+            <input 
+              type="password"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter new password"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Confirm Password</label>
+            <input 
+              type="password"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Confirm new password"
+            />
+          </div>
+          <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Update Password
+          </button>
+        </div>
+      </div>
+
+      {/* Two-Factor Authentication */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Shield className="w-5 h-5 text-blue-400" />
+          Two-Factor Authentication
+        </h3>
+        <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+          <div>
+            <h4 className="font-medium text-white">SMS Authentication</h4>
+            <p className="text-sm text-gray-400">Receive verification codes via SMS</p>
+          </div>
+          <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Enable
+          </button>
+        </div>
+      </div>
+
+      {/* Session Management */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-red-400" />
+          Active Sessions
+        </h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Monitor className="w-5 h-5 text-green-400" />
+              <div>
+                <p className="font-medium">Current Session</p>
+                <p className="text-sm text-gray-400">Windows • Chrome • Pittsburgh, PA</p>
+              </div>
+            </div>
+            <span className="text-green-400 text-sm font-medium">Active</span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Phone className="w-5 h-5 text-blue-400" />
+              <div>
+                <p className="font-medium">Mobile Device</p>
+                <p className="text-sm text-gray-400">iOS • Safari • 2 hours ago</p>
+              </div>
+            </div>
+            <button className="text-red-400 hover:text-red-300 text-sm font-medium">
+              Terminate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDataSection = () => (
+    <div className="space-y-6">
+      {/* Data Usage Overview */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-blue-400" />
+          Data Usage Overview
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {dataUsageStats.map((stat, index) => (
+            <div key={index} className="p-4 bg-gray-800/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">{stat.category}</span>
+                <span className="text-sm text-gray-400">
+                  {stat.usage} / {stat.total} {stat.unit}
+                </span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className={`${stat.color} h-2 rounded-full transition-all duration-300`}
+                  style={{ width: `${(stat.usage / stat.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Data Export */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Download className="w-5 h-5 text-green-400" />
+          Data Export
+        </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+            <div>
+              <h4 className="font-medium">Export All Projects</h4>
+              <p className="text-sm text-gray-400">Download all your LCA projects and data</p>
+            </div>
+            <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              Export
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+            <div>
+              <h4 className="font-medium">Export Reports</h4>
+              <p className="text-sm text-gray-400">Download generated reports and analytics</p>
+            </div>
+            <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              Export
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Retention */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <HardDrive className="w-5 h-5 text-purple-400" />
+          Data Retention Settings
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Data Retention Period</label>
+            <select 
+              value={dataRetention}
+              onChange={(e) => setDataRetention(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="6">6 months</option>
+              <option value="12">12 months</option>
+              <option value="24">24 months</option>
+              <option value="36">36 months</option>
+              <option value="indefinite">Indefinite</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Data older than this period will be automatically deleted</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Backup Frequency</label>
+            <select 
+              value={backupFrequency}
+              onChange={(e) => setBackupFrequency(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="manual">Manual only</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPreferencesSection = () => (
+    <div className="space-y-6">
+      {/* Interface Preferences */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Palette className="w-5 h-5 text-purple-400" />
+          Interface Preferences
+        </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Moon className="w-5 h-5 text-blue-400" />
+              <div>
+                <h4 className="font-medium">Dark Mode</h4>
+                <p className="text-sm text-gray-400">Use dark theme across the application</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                darkMode ? 'bg-blue-600' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  darkMode ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Save className="w-5 h-5 text-green-400" />
+              <div>
+                <h4 className="font-medium">Auto-save</h4>
+                <p className="text-sm text-gray-400">Automatically save changes as you work</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoSave(!autoSave)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                autoSave ? 'bg-green-600' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  autoSave ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Language & Region */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Globe className="w-5 h-5 text-blue-400" />
+          Language & Region
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Language</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>English (US)</option>
+              <option>English (UK)</option>
+              <option>Spanish</option>
+              <option>French</option>
+              <option>German</option>
+              <option>Chinese (Simplified)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Timezone</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>UTC-5 (Eastern Time)</option>
+              <option>UTC-6 (Central Time)</option>
+              <option>UTC-7 (Mountain Time)</option>
+              <option>UTC-8 (Pacific Time)</option>
+              <option>UTC+0 (GMT)</option>
+              <option>UTC+1 (CET)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Date Format</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>MM/DD/YYYY</option>
+              <option>DD/MM/YYYY</option>
+              <option>YYYY-MM-DD</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Number Format</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>1,234.56</option>
+              <option>1.234,56</option>
+              <option>1 234,56</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSystemSection = () => (
+    <div className="space-y-6">
+      {/* API Configuration */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-yellow-400" />
+          API Configuration
+        </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+            <div>
+              <h4 className="font-medium">API Usage Monitoring</h4>
+              <p className="text-sm text-gray-400">Track API calls and performance metrics</p>
+            </div>
+            <button
+              onClick={() => setApiUsage(!apiUsage)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                apiUsage ? 'bg-yellow-600' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  apiUsage ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">API Rate Limit</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>Standard (100 calls/hour)</option>
+              <option>Enhanced (500 calls/hour)</option>
+              <option>Premium (1000 calls/hour)</option>
+              <option>Unlimited</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Settings */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-green-400" />
+          Performance Settings
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Cache Duration</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>1 hour</option>
+              <option>6 hours</option>
+              <option>24 hours</option>
+              <option>7 days</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Concurrent Processes</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option>2 processes</option>
+              <option>4 processes</option>
+              <option>8 processes</option>
+              <option>Auto-detect</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* System Information */}
+      <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Info className="w-5 h-5 text-blue-400" />
+          System Information
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Version:</span>
+              <span>v2.1.0</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Last Update:</span>
+              <span>Sep 1, 2025</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">License:</span>
+              <span>Enterprise</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Uptime:</span>
+              <span>99.8%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Server:</span>
+              <span>US-East-1</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Status:</span>
+              <span className="text-green-400">Operational</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'profile':
+        return renderProfileSection();
+      case 'notifications':
+        return renderNotificationsSection();
+      case 'security':
+        return renderSecuritySection();
+      case 'data':
+        return renderDataSection();
+      case 'preferences':
+        return renderPreferencesSection();
+      case 'system':
+        return renderSystemSection();
+      default:
+        return renderProfileSection();
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="p-8 h-full overflow-y-auto"
+    >
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-purple-600/20 rounded-xl border border-purple-500/30">
+            <Settings className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-white">Settings</h1>
+            <p className="text-gray-400">Manage your account preferences and configuration</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Settings Content */}
+      <motion.div
+        key={activeSection}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {renderActiveSection()}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function DemoPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -2212,6 +4393,7 @@ export default function DemoPage() {
   const [analysisSelectedNode, setAnalysisSelectedNode] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [optimizerGraphView, setOptimizerGraphView] = useState(false); // Track AI optimizer graph view
   const [projects, setProjects] = useState<Project[]>([
     {
       id: '1',
@@ -2611,6 +4793,13 @@ export default function DemoPage() {
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  // Reset optimizer graph view when switching tabs
+  useEffect(() => {
+    if (activeTab !== 'optimizer') {
+      setOptimizerGraphView(false);
+    }
+  }, [activeTab]);
 
   const handleTabChange = (tab: string) => {
     // Save current project progress before switching tabs
@@ -3146,15 +5335,17 @@ export default function DemoPage() {
 
       {/* Main Content */}
       <div className="relative">
-        {/* Top Menu Button */}
-        <div className="fixed top-4 left-4 z-30">
-          <button 
-            onClick={toggleSidebar}
-            className="cursor-pointer p-3 bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-lg hover:from-gray-800/80 hover:to-gray-700/80 transition-all duration-300 shadow-lg"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Top Menu Button - Hidden when viewing AI optimizer graph */}
+        {!optimizerGraphView && (
+          <div className="fixed top-4 left-4 z-30">
+            <button 
+              onClick={toggleSidebar}
+              className="cursor-pointer p-3 bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-lg hover:from-gray-800/80 hover:to-gray-700/80 transition-all duration-300 shadow-lg"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5" style={{
@@ -3671,20 +5862,10 @@ export default function DemoPage() {
           )}
 
           {activeTab === 'optimizer' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center py-16"
-            >
-              <Zap className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">AI Optimizer & Scenarios</h1>
-              <p className="text-gray-400 mb-8">Optimize your processes with AI-powered scenario analysis</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">AI optimization engine is under development</p>
-              </div>
-            </motion.div>
+            <AIOptimizerPanel 
+              projects={projects} 
+              onGraphViewChange={setOptimizerGraphView}
+            />
           )}
 
           {activeTab === 'reports' && (
@@ -3694,37 +5875,13 @@ export default function DemoPage() {
           )}
 
           {activeTab === 'settings' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center py-16"
-            >
-              <Settings className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">Settings</h1>
-              <p className="text-gray-400 mb-8">Configure your MetisAI preferences</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">Settings panel under construction</p>
-              </div>
-            </motion.div>
+            <div className="flex-1 p-6">
+              <BasicSettingsPanel />
+            </div>
           )}
 
           {activeTab === 'user' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center py-16"
-            >
-              <User className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold mb-4">User Profile</h1>
-              <p className="text-gray-400 mb-8">Manage your account and preferences</p>
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 border border-gray-700/30 rounded-xl p-8">
-                <h3 className="text-xl font-semibold mb-4">Coming Soon</h3>
-                <p className="text-gray-400">User management system being built</p>
-              </div>
-            </motion.div>
+            <UserManagementPanel />
           )}
         </div>
       </div>
